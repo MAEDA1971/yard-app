@@ -1,0 +1,1552 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>プレキャスト製品ストックヤード管理</title>
+  <style>
+    * { box-sizing: border-box; }
+    body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; font-family: system-ui, sans-serif; }
+
+    header {
+      background: #0a5378; color: #fff; padding: 0 12px; height: 50px;
+      display: flex; align-items: center; gap: 10px; position: relative; z-index: 100;
+    }
+    header h1 { margin: 0; font-size: 16px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    header button {
+      background: rgba(255,255,255,0.2); color: #fff; border: 1px solid rgba(255,255,255,0.4);
+      border-radius: 4px; padding: 4px 10px; font-size: 13px; cursor: pointer; white-space: nowrap;
+    }
+    header button:hover { background: rgba(255,255,255,0.35); }
+
+    #canvas-container { width: 100%; height: calc(100vh - 50px); overflow: hidden; position: relative; background: #f0f0f0; }
+    canvas { display: block; touch-action: none; cursor: crosshair; }
+    canvas.dragging { cursor: grabbing; }
+
+    /* ツールバー */
+    #marker-toolbar {
+      position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 6px; z-index: 10; white-space: nowrap;
+    }
+
+    .toolbar-btn {
+      padding: 7px 12px; border: 2px solid rgba(255,255,255,0.4); border-radius: 6px;
+      font-size: 13px; font-weight: bold; color: #fff; cursor: pointer;
+    }
+    .toolbar-btn:hover { filter: brightness(1.2); }
+
+    .layer-btn { opacity: 0.7; }
+    .layer-btn.active { opacity: 1; border-color: #fff; box-shadow: 0 0 0 3px rgba(255,255,255,0.7); }
+    .layer-btn[data-layer="1"] { background: #cc1010; }
+    .layer-btn[data-layer="2"] { background: #bb8800; }
+    .layer-btn[data-layer="3"] { background: #cc5500; }
+
+    #btn-register { background: #1a7a3a; }
+    #btn-search   { background: #1a5a9a; }
+    #btn-clear    { background: #555; display: none; }
+    #btn-clear.visible { display: block; }
+
+    /* 製品登録サブメニュー */
+    #reg-submenu {
+      position: absolute; background: rgba(10,40,25,0.97);
+      border: 1px solid rgba(255,255,255,0.3); border-radius: 8px;
+      padding: 8px; display: none; flex-direction: column; gap: 6px; z-index: 20;
+    }
+    #reg-submenu.visible { display: flex; }
+    #reg-submenu button {
+      padding: 10px 24px; background: rgba(255,255,255,0.15);
+      border: 1px solid rgba(255,255,255,0.4); border-radius: 6px;
+      color: #fff; font-size: 16px; font-weight: bold; cursor: pointer; text-align: center;
+    }
+    #reg-submenu button:hover { background: rgba(255,255,255,0.3); }
+
+    #status {
+      position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.65);
+      color: #fff; padding: 4px 10px; border-radius: 4px; font-size: 13px; pointer-events: none;
+    }
+    #no-place-msg {
+      position: absolute; background: rgba(180,0,0,0.92); color: #fff;
+      padding: 10px 20px; border-radius: 8px; font-size: 15px; font-weight: bold;
+      pointer-events: none; display: none; white-space: nowrap; z-index: 20;
+    }
+
+    /* 右サイドパネル */
+    #side-panel {
+      position: fixed; top: 50px; right: -340px; width: 320px;
+      height: calc(100vh - 50px); background: rgba(15,25,45,0.98); color: #fff;
+      display: flex; flex-direction: column; transition: right 0.3s ease;
+      z-index: 50; border-left: 1px solid rgba(255,255,255,0.2);
+      overflow-y: auto;
+    }
+    #side-panel.open { right: 0; }
+
+    .panel-header {
+      background: #0a3a5c; padding: 12px 14px;
+      display: flex; align-items: center; justify-content: space-between;
+      font-size: 16px; font-weight: bold; flex-shrink: 0;
+    }
+    .panel-close {
+      background: none; border: none; color: #fff; font-size: 22px; cursor: pointer; padding: 0 4px; line-height: 1;
+    }
+    .panel-body { padding: 14px; }
+
+    .form-row { margin-bottom: 12px; }
+    .form-row label { display: block; font-size: 12px; color: #9ab; margin-bottom: 4px; }
+    .form-row label .req { color: #ff7070; margin-left: 4px; font-size: 11px; }
+    .form-row input, .form-row select {
+      width: 100%; padding: 9px 10px; background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.3); border-radius: 5px; color: #fff; font-size: 15px;
+    }
+    /* datalist付きinputのドロップダウン矢印を白く */
+    .form-row input::-webkit-calendar-picker-indicator { filter: invert(1); opacity: 0.7; }
+    .form-row input::placeholder { color: rgba(255,255,255,0.35); }
+    .form-row select option { background: #1a2a3a; color: #fff; }
+
+    .btn-primary {
+      width: 100%; padding: 13px; background: #1a7a3a; border: none;
+      border-radius: 7px; color: #fff; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 6px;
+    }
+    .btn-primary:hover { background: #22943f; }
+    .btn-secondary {
+      width: 100%; padding: 13px; background: #1a5a9a; border: none;
+      border-radius: 7px; color: #fff; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 6px;
+    }
+    .btn-secondary:hover { background: #226aba; }
+
+    .error-msg { color: #ff7070; font-size: 13px; margin-top: 6px; display: none; }
+    .error-msg.visible { display: block; }
+
+    /* QRスキャン */
+    #qr-section { display: none; margin-bottom: 12px; }
+    #qr-section.visible { display: block; }
+    #qr-video { width: 100%; border-radius: 6px; background: #000; min-height: 180px; }
+    #qr-canvas { display: none; }
+    .qr-hint { font-size: 12px; color: #9ab; margin: 0 0 8px; }
+
+    /* 検索フォーム */
+    #search-form { display: none; }
+    #search-form.visible { display: block; }
+    .search-hint { font-size: 12px; color: #9ab; margin: 0 0 14px; line-height: 1.5; }
+
+    /* 製品情報パネル */
+    #info-panel { display: none; }
+    #info-panel.visible { display: block; }
+    .info-row {
+      display: flex; align-items: flex-start; padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .info-row:last-child { border-bottom: none; }
+    .info-label { font-size: 12px; color: #9ab; width: 96px; flex-shrink: 0; padding-top: 1px; }
+    .info-value { font-size: 15px; color: #fff; flex: 1; word-break: break-all; }
+    .info-value.empty { color: rgba(255,255,255,0.3); font-size: 13px; }
+    .layer-badge {
+      display: inline-block; padding: 2px 10px; border-radius: 12px;
+      font-size: 13px; font-weight: bold; color: #fff;
+    }
+    .info-unreg { color: #ffcc66; font-size: 13px; margin-bottom: 14px; }
+    .address-badge {
+      background: rgba(255,255,255,0.12); border: 1px solid rgba(255,255,255,0.3);
+      border-radius: 8px; padding: 10px 14px; margin-bottom: 14px; display: none;
+    }
+    .address-badge.visible { display: block; }
+    .address-badge .addr-label { font-size: 11px; color: #9ab; margin-bottom: 4px; }
+    .address-badge .addr-value { font-size: 20px; font-weight: bold; color: #ffe066; letter-spacing: 1px; }
+    .reg-address-box {
+      background: rgba(255,220,80,0.12); border: 1px solid rgba(255,220,80,0.3);
+      border-radius: 6px; padding: 8px 12px; margin-bottom: 14px; display: none;
+    }
+    .reg-address-box.visible { display: block; }
+    .reg-address-box .addr-label { font-size: 11px; color: #cca; margin-bottom: 2px; }
+    .reg-address-box .addr-value { font-size: 16px; font-weight: bold; color: #ffe066; }
+
+    /* トースト */
+    #toast {
+      position: fixed; bottom: 40px; left: 50%; transform: translateX(-50%);
+      background: rgba(20,100,50,0.95); color: #fff; padding: 12px 24px;
+      border-radius: 8px; font-size: 15px; font-weight: bold; z-index: 200;
+      display: none; white-space: nowrap; pointer-events: none;
+    }
+
+    /* ===== iPhone専用スタイル ===== */
+    #btn-sp-expand { display: none; }
+
+    @media (max-width: 480px) {
+      /* ヘッダー */
+      header { height: 44px; padding: 0 8px; gap: 6px; }
+      header h1 { font-size: 13px; }
+      #btn-csv-import { display: none !important; }
+
+      /* ツールバーをヘッダー直下の上部固定に */
+      #marker-toolbar {
+        position: fixed; top: 44px; left: 0; right: 0; bottom: auto;
+        transform: none; width: 100%; height: 92px;
+        background: rgba(10,40,70,0.97);
+        border-bottom: 1px solid rgba(255,255,255,0.25);
+        display: grid; grid-template-columns: repeat(3, 1fr);
+        gap: 5px; padding: 6px;
+        z-index: 30; white-space: normal;
+      }
+      /* ボタン順序：段数ボタン上段、操作ボタン下段 */
+      .layer-btn[data-layer="1"] { order: 1; }
+      .layer-btn[data-layer="2"] { order: 2; }
+      .layer-btn[data-layer="3"] { order: 3; }
+      #btn-register { order: 4; background: #1a7a3a; }
+      #btn-search   { order: 5; background: #1a5a9a; }
+      #btn-clear    { order: 6; }
+      .toolbar-btn  { padding: 8px 2px; font-size: 12px; border-radius: 8px; }
+
+      /* キャンバスエリア：ツールバー分だけ下にずらす */
+      #canvas-container {
+        margin-top: 92px;
+        height: calc(100vh - 44px - 92px);
+      }
+
+      /* サブメニューをトーストの下に配置（重ならないよう210px以下） */
+      #reg-submenu {
+        position: fixed; top: 210px; bottom: auto;
+        left: 50%; transform: translateX(-50%);
+        flex-direction: row; gap: 16px; padding: 10px 16px;
+      }
+      #reg-submenu button { padding: 14px 32px; font-size: 18px; }
+
+      /* サイドパネル → ボトムシート（下から滑り上がる） */
+      #side-panel {
+        top: auto; right: 0; left: 0; bottom: 0;
+        width: 100%; height: auto;
+        border-left: none;
+        border-top: 2px solid rgba(255,255,255,0.35);
+        border-radius: 16px 16px 0 0;
+        overflow: hidden;
+        touch-action: pan-y;
+        transform: translateY(100%);
+        transition: transform 0.3s ease;
+        display: flex; flex-direction: column;
+      }
+      #side-panel.open    { transform: translateY(0); }
+      #side-panel.sp-full { height: var(--panel-max-h, calc(100vh - 44px)); border-radius: 0; }
+      #side-panel.sp-mini { height: 220px; }
+      #side-panel.sp-mini .sp-search-extra { display: none; }
+      #side-panel.sp-mini .search-hint     { display: none; }
+
+      /* スクロールは panel-body に委譲（iOS fixed要素スクロールバグ対策） */
+      #side-panel .panel-body {
+        flex: 1; min-height: 0;
+        overflow-y: scroll;
+        -webkit-overflow-scrolling: touch;
+        touch-action: pan-y;
+      }
+      #side-panel.sp-mini .panel-body { overflow: hidden; }
+
+      /* 全情報表示ボタン（iPhoneのみ・全画面時は不要なので隠す） */
+      #btn-sp-expand { display: block; }
+      #side-panel.sp-full #btn-sp-expand { display: none; }
+
+      /* トーストをツールバー直下に表示 */
+      #toast  { top: 148px; bottom: auto; left: 50%; transform: translateX(-50%); }
+      #status { bottom: 8px; }
+
+      /* 入力フィールドを大きく */
+      .form-row input, .form-row select { font-size: 16px; padding: 11px 10px; }
+      .btn-primary   { padding: 15px; font-size: 17px; }
+      .btn-secondary { padding: 15px; font-size: 17px; }
+      .info-label { font-size: 13px; width: 90px; }
+      .info-value { font-size: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>プレキャスト製品ストックヤード管理</h1>
+    <button id="btn-csv-import">CSV取込</button>
+    <button id="btn-fit">全体表示</button>
+  </header>
+  <input type="file" id="csv-file-input" accept=".csv" style="display:none">
+
+  <div id="canvas-container">
+    <canvas id="canvas"></canvas>
+
+    <div id="marker-toolbar">
+      <button class="toolbar-btn" id="btn-register">製品登録</button>
+      <button class="toolbar-btn layer-btn" data-layer="1">● 1段目</button>
+      <button class="toolbar-btn layer-btn" data-layer="2">● 2段目</button>
+      <button class="toolbar-btn layer-btn" data-layer="3">● 3段目</button>
+      <button class="toolbar-btn" id="btn-search">検索</button>
+      <button class="toolbar-btn" id="btn-clear">クリア</button>
+    </div>
+
+    <div id="reg-submenu">
+      <button id="btn-qr">QR</button>
+      <button id="btn-input">入力</button>
+    </div>
+
+    <div id="no-place-msg">ここには製品を置けません</div>
+    <div id="status">読み込み中...</div>
+  </div>
+
+  <!-- 右サイドパネル -->
+  <div id="side-panel">
+    <div class="panel-header">
+      <span id="panel-title">製品登録</span>
+      <button class="panel-close" id="btn-panel-close">×</button>
+    </div>
+    <div class="panel-body">
+      <!-- QRスキャン -->
+      <div id="qr-section">
+        <p class="qr-hint">カメラでQRコードを読み取ってください</p>
+        <video id="qr-video" playsinline autoplay muted></video>
+        <canvas id="qr-canvas"></canvas>
+      </div>
+
+      <!-- 登録フォーム -->
+      <div id="reg-form">
+        <!-- iPhone用：場所タップ待ちヒント -->
+        <div id="sp-tap-hint" style="display:none; background:rgba(255,200,0,0.15); border:1px solid rgba(255,200,0,0.4); border-radius:6px; padding:10px 12px; margin-bottom:10px; font-size:14px; color:#ffe066; text-align:center;">
+          ▲ 地図をタップして場所を決めてください
+        </div>
+        <!-- 自動取得した番地 -->
+        <div class="reg-address-box" id="reg-address-box">
+          <div class="addr-label">番地（自動取得）</div>
+          <div class="addr-value" id="reg-address-value"></div>
+        </div>
+        <div class="form-row">
+          <label>部件名<span class="req">★必須</span></label>
+          <input type="text" id="f-site" list="dl-site" placeholder="入力または▼から選択">
+        </div>
+        <div class="form-row">
+          <label>製品番号<span class="req">★必須</span></label>
+          <input type="text" id="f-part-name" list="dl-part-name" placeholder="入力または▼から選択">
+        </div>
+        <div class="form-row">
+          <label>部材種</label>
+          <input type="text" id="f-part-type" list="dl-part-type" placeholder="入力または▼から選択">
+        </div>
+        <div class="form-row">
+          <label>製造日</label>
+          <input type="text" id="f-mfg-date" list="dl-mfg-date" placeholder="例：2026326（2026年3月26日）" inputmode="numeric" maxlength="8">
+          <div id="f-mfg-date-preview" style="font-size:12px;color:#9fb;margin-top:4px;min-height:16px;"></div>
+        </div>
+        <div class="form-row">
+          <label>製造ライン</label>
+          <input type="text" id="f-seizou-line" list="dl-seizou-line" placeholder="入力または▼から選択">
+        </div>
+        <div class="form-row">
+          <label>型枠番号</label>
+          <input type="text" id="f-mold-no" placeholder="例：M-001">
+        </div>
+        <div class="form-row">
+          <label>Fc</label>
+          <input type="text" id="f-strength" placeholder="例：24">
+        </div>
+        <datalist id="dl-seizou-line"></datalist>
+        <div class="error-msg" id="reg-error">部件名と製品番号は必須です</div>
+        <button class="btn-primary" id="btn-reg-submit">登録</button>
+      </div>
+
+      <!-- 製品情報表示 -->
+      <div id="info-panel">
+        <!-- 番地（一番上に表示） -->
+        <div class="address-badge" id="i-address-box">
+          <div class="addr-label">番地</div>
+          <div class="addr-value" id="i-address"></div>
+        </div>
+        <div id="info-unreg-msg" class="info-unreg" style="display:none;">
+          この○はまだ製品情報が登録されていません
+        </div>
+        <div class="info-row">
+          <span class="info-label">段数</span>
+          <span class="info-value"><span id="i-layer-badge" class="layer-badge"></span></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">部件名</span>
+          <span class="info-value" id="i-site"></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">製品番号</span>
+          <span class="info-value" id="i-part-name"></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">部材種</span>
+          <span class="info-value" id="i-part-type"></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">製造日</span>
+          <span class="info-value" id="i-mfg-date"></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">製造ライン</span>
+          <span class="info-value" id="i-seizou-line"></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">型枠番号</span>
+          <span class="info-value" id="i-mold-no"></span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">Fc</span>
+          <span class="info-value" id="i-strength"></span>
+        </div>
+      </div>
+
+      <!-- 検索フォーム -->
+      <div id="search-form">
+        <p class="search-hint">入力またはリストから選択してください。<br>複数条件はAND検索になります。</p>
+        <div class="form-row">
+          <label>部件名</label>
+          <input type="text" id="s-site"       list="dl-site"       placeholder="入力または▼から選択">
+          <datalist id="dl-site"></datalist>
+        </div>
+        <div class="form-row">
+          <label>製品番号</label>
+          <input type="text" id="s-part-name"  list="dl-part-name"  placeholder="入力または▼から選択">
+          <datalist id="dl-part-name"></datalist>
+        </div>
+        <div class="form-row sp-search-extra">
+          <label>部材種</label>
+          <input type="text" id="s-part-type"  list="dl-part-type"  placeholder="入力または▼から選択">
+          <datalist id="dl-part-type"></datalist>
+        </div>
+        <div class="form-row sp-search-extra">
+          <label>製造日</label>
+          <input type="text" id="s-mfg-date"   list="dl-mfg-date"   placeholder="入力または▼から選択">
+          <datalist id="dl-mfg-date"></datalist>
+        </div>
+        <div class="form-row sp-search-extra">
+          <label>製造ライン</label>
+          <input type="text" id="s-seizou-line" list="dl-seizou-line" placeholder="入力または▼から選択">
+        </div>
+        <button id="btn-sp-expand" class="btn-secondary" style="margin-bottom:6px">▼ 条件を追加・全表示</button>
+        <button class="btn-secondary" id="btn-search-exec">検索する</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="toast"></div>
+
+  <script type="module">
+    import DxfParser from 'https://esm.sh/dxf-parser';
+    import jsQR from 'https://esm.sh/jsqr';
+
+    // ===== デバイス判定 =====
+    const isPhone = window.matchMedia('(max-width: 480px)').matches;
+
+    // ===== iPhone パネル高さ初期設定 =====
+    // キーボード表示でパネルを縮めない：常にヘッダー直下から全画面を確保
+    if (isPhone) {
+      const sp = document.getElementById('side-panel');
+      sp.style.setProperty('--panel-max-h', (window.innerHeight - 44) + 'px');
+    }
+
+    // ===== Canvas =====
+    const canvas  = document.getElementById('canvas');
+    const ctx     = canvas.getContext('2d');
+    const container = document.getElementById('canvas-container');
+    const statusEl  = document.getElementById('status');
+
+    // ===== DXF 状態 =====
+    let dxf = null, scale = 1, offsetX = 0, offsetY = 0, fitBounds = null;
+    let noPlacementZones = [];
+    let addressCells = []; // { minX, maxX, minY, maxY, address }
+    let siteBoundaryLines = []; // { x1, y1, x2, y2 }  _0-1_ レイヤーの外周ライン
+
+    // ===== マーカー =====
+    const LAYER_COLORS = { 1: '#ff3030', 2: '#ffcc00', 3: '#ff8800' };
+    let selectedLayer = null;
+    let markers = [];
+    let nextId = 1;
+    let searchVisibleIds = new Set();
+    let currentPanelMode = null;
+
+    // ===== CSV製品マスタ =====
+    // 構造: { "物件名A": [ { partType:"梁", partName:"B-101" }, ... ], ... }
+    let csvMaster = {};
+
+    function loadCsvMaster() {
+      try {
+        const stored = localStorage.getItem('yard_csv_master');
+        if (stored) csvMaster = JSON.parse(stored);
+      } catch (e) {}
+    }
+
+    function saveCsvMaster() {
+      try { localStorage.setItem('yard_csv_master', JSON.stringify(csvMaster)); } catch (e) {}
+    }
+
+    loadCsvMaster();
+
+    document.getElementById('btn-csv-import').addEventListener('click', () => {
+      document.getElementById('csv-file-input').click();
+    });
+
+    document.getElementById('csv-file-input').addEventListener('change', e => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = ev => {
+        const text = ev.target.result;
+        const lines = text.split(/\r?\n/).filter(l => l.trim());
+        let count = 0;
+        lines.forEach(line => {
+          const cols = line.split(',').map(c => c.trim());
+          // ヘッダー行スキップ（1列目が"物件名"など文字列の場合）
+          if (cols[0] === '物件名' || cols[0] === '部件名') return;
+          const siteName = cols[0];
+          const partType = cols[1] || '';
+          const partName = cols[2] || '';
+          if (!siteName || !partName) return;
+          if (!csvMaster[siteName]) csvMaster[siteName] = [];
+          // 重複追加しない
+          const exists = csvMaster[siteName].some(r => r.partName === partName);
+          if (!exists) {
+            csvMaster[siteName].push({ partType, partName });
+            count++;
+          }
+        });
+        saveCsvMaster();
+        populateDropdowns();
+        showToast(`CSV取込完了：${count}件追加`);
+        e.target.value = ''; // 同じファイルを再選択できるようにリセット
+      };
+      reader.readAsText(file, 'UTF-8');
+    });
+
+    // 部件名フィールド変更時 → 製品番号ドロップダウンをCSVデータで更新
+    function updatePartNameListFromCsv(siteName) {
+      const csvRows = csvMaster[siteName] || [];
+      const regNames = (csvMaster[siteName] || []).map(r => r.partName);
+      // 既存登録済みマーカーの製品番号も合わせて表示
+      const markerNames = markers
+        .filter(m => m.registered && m.info && m.info.siteName === siteName)
+        .map(m => m.info.partName);
+      const allNames = [...new Set([...regNames, ...markerNames])].sort();
+      fillDatalist('dl-part-name', allNames);
+    }
+
+    // 製品番号フィールド変更時 → CSVから部材種を自動入力
+    function autoFillPartType(siteName, partName) {
+      const rows = csvMaster[siteName] || [];
+      const match = rows.find(r => r.partName === partName);
+      if (match && match.partType) {
+        const el = document.getElementById('f-part-type');
+        if (!el.value) el.value = match.partType;
+      }
+    }
+
+    // ===== localStorage 永続化 =====
+    function saveMarkers() {
+      try {
+        localStorage.setItem('yard_markers', JSON.stringify(markers));
+        localStorage.setItem('yard_next_id', String(nextId));
+      } catch (e) {}
+    }
+
+    function loadMarkers() {
+      try {
+        const stored = localStorage.getItem('yard_markers');
+        if (stored) {
+          markers = JSON.parse(stored);
+          // リロード時は pendingHide をリセット（表示状態をクリア）
+          markers.forEach(m => { m.pendingHide = false; });
+        }
+        const storedId = localStorage.getItem('yard_next_id');
+        if (storedId) nextId = parseInt(storedId, 10);
+      } catch (e) {}
+    }
+
+    // 起動時にデータを復元
+    loadMarkers();
+
+    // ===== QR =====
+    let qrStream = null, qrRaf = null;
+
+    // ===== パネル =====
+    const sidePanel  = document.getElementById('side-panel');
+    const panelTitle = document.getElementById('panel-title');
+    const regForm    = document.getElementById('reg-form');
+    const searchForm = document.getElementById('search-form');
+    const qrSection  = document.getElementById('qr-section');
+    const regSubmenu = document.getElementById('reg-submenu');
+    const btnClear   = document.getElementById('btn-clear');
+    const regError   = document.getElementById('reg-error');
+
+    // ===== トースト =====
+    function showToast(msg, color = 'rgba(20,100,50,0.95)') {
+      const el = document.getElementById('toast');
+      el.textContent = msg;
+      el.style.background = color;
+      el.style.display = 'block';
+      clearTimeout(el._t);
+      el._t = setTimeout(() => { el.style.display = 'none'; }, 2200);
+    }
+
+    // ===== ドロップダウン生成（登録・検索フォーム共通） =====
+    const DEFAULT_PART_TYPES = ['梁', '柱', 'バルコニー', 'スラブ', '壁', 'その他'];
+
+    function populateDropdowns() {
+      const siteSet      = new Set();
+      const nameSet      = new Set();
+      const typeSet      = new Set(DEFAULT_PART_TYPES);
+      const dateSet      = new Set();
+      const seizouSet    = new Set();
+
+      // CSVマスタの物件名・製品番号・部材種も含める
+      Object.keys(csvMaster).forEach(s => siteSet.add(s));
+      Object.values(csvMaster).flat().forEach(r => {
+        if (r.partName) nameSet.add(r.partName);
+        if (r.partType) typeSet.add(r.partType);
+      });
+
+      markers.forEach(m => {
+        if (!m.registered || !m.info) return;
+        if (m.info.siteName)   siteSet.add(m.info.siteName);
+        if (m.info.partName)   nameSet.add(m.info.partName);
+        if (m.info.partType)   typeSet.add(m.info.partType);
+        if (m.info.mfgDate)    dateSet.add(m.info.mfgDate);
+        if (m.info.seizouLine) seizouSet.add(m.info.seizouLine);
+      });
+
+      fillDatalist('dl-site',        [...siteSet].sort());
+      fillDatalist('dl-part-name',   [...nameSet].sort());
+      fillDatalist('dl-part-type',   [...typeSet].sort());
+      fillDatalist('dl-mfg-date',    [...dateSet].sort());
+      fillDatalist('dl-seizou-line', [...seizouSet].sort());
+    }
+
+    function fillDatalist(id, options) {
+      const dl = document.getElementById(id);
+      if (!dl) return;
+      dl.innerHTML = '';
+      options.forEach(opt => {
+        const el = document.createElement('option');
+        el.value = opt;
+        dl.appendChild(el);
+      });
+    }
+
+    // ===== パネル操作 =====
+    function openPanel(mode) {
+      currentPanelMode = mode;
+      panelTitle.textContent = mode === 'search' ? '検索' : '製品登録';
+      regForm.style.display    = mode !== 'search' ? 'block' : 'none';
+      searchForm.classList[mode === 'search' ? 'add' : 'remove']('visible');
+      if (mode === 'search') {
+        searchForm.style.display = 'block';
+      } else {
+        searchForm.style.display = 'none';
+      }
+      populateDropdowns(); // 登録・検索どちらのパネルでもリストを更新
+      document.getElementById('info-panel').classList.remove('visible');
+
+      // 登録フォームを開くとき、最後の未登録マーカーの番地を表示
+      if (mode === 'qr' || mode === 'input') {
+        const addrBox = document.getElementById('reg-address-box');
+        const addrVal = document.getElementById('reg-address-value');
+        let lastPending = null;
+        for (let i = markers.length - 1; i >= 0; i--) {
+          if (!markers[i].registered) { lastPending = markers[i]; break; }
+        }
+        if (lastPending && lastPending.address) {
+          addrVal.textContent = lastPending.address;
+          addrBox.classList.add('visible');
+        } else {
+          addrBox.classList.remove('visible');
+        }
+      }
+
+      if (mode === 'qr') {
+        qrSection.classList.add('visible');
+        startQR();
+      } else {
+        qrSection.classList.remove('visible');
+        stopQR();
+      }
+
+      regSubmenu.classList.remove('visible');
+
+      if (isPhone) {
+        // 登録モードのとき: 先に未登録マーカーを確認（パネルに触る前）
+        if (mode !== 'search') {
+          const hasUnreg = markers.some(m => !m.registered);
+          if (!hasUnreg) {
+            showToast('先に地図をタップして場所を決めてください', 'rgba(140,80,20,0.95)');
+            return; // パネル状態は変更しない
+          }
+        }
+        // 検証OK: 全画面で開く
+        sidePanel.classList.remove('sp-mini');
+        sidePanel.classList.add('open', 'sp-full');
+      } else {
+        sidePanel.classList.add('open');
+      }
+    }
+
+    // × ボタン用：パネルを閉じ、検索結果の○もすべて消す
+    function closePanel() {
+      sidePanel.classList.remove('open', 'sp-full', 'sp-mini');
+      stopQR();
+      regSubmenu.classList.remove('visible');
+      // 登録途中でキャンセルした場合、未登録マーカーを削除・段数解除
+      if (currentPanelMode !== 'search') {
+        const before = markers.length;
+        markers = markers.filter(m => m.registered);
+        if (markers.length !== before) { saveMarkers(); render(); }
+        clearLayerSelection();
+      }
+      currentPanelMode = null;
+      if (searchVisibleIds.size > 0) {
+        searchVisibleIds.clear();
+        btnClear.classList.remove('visible');
+        render();
+      }
+    }
+
+    // 検索結果は残したままパネルUIだけ閉じる
+    function closePanelKeepSearch() {
+      sidePanel.classList.remove('open', 'sp-full', 'sp-mini');
+      stopQR();
+      regSubmenu.classList.remove('visible');
+    }
+
+    document.getElementById('btn-panel-close').addEventListener('click', closePanel);
+
+    // iPhone: 全情報表示ボタン（ミニ → 全画面）
+    document.getElementById('btn-sp-expand').addEventListener('click', () => {
+      sidePanel.classList.remove('sp-mini');
+      sidePanel.classList.add('sp-full');
+    });
+
+    // ===== 製品登録サブメニュー =====
+    document.getElementById('btn-register').addEventListener('click', e => {
+      e.stopPropagation();
+      if (regSubmenu.classList.contains('visible')) {
+        regSubmenu.classList.remove('visible');
+        return;
+      }
+      const btnRect = e.currentTarget.getBoundingClientRect();
+      if (isPhone) {
+        // position: fixed → ビューポート基準で位置を計算
+        regSubmenu.style.left      = '50%';
+        regSubmenu.style.transform = 'translateX(-50%)';
+        regSubmenu.style.top       = Math.max(btnRect.bottom + 75, 210) + 'px';
+      } else {
+        // position: absolute → canvas-container基準
+        const cRect = container.getBoundingClientRect();
+        regSubmenu.style.left      = (btnRect.left - cRect.left) + 'px';
+        regSubmenu.style.top       = (btnRect.bottom - cRect.top + 4) + 'px';
+        regSubmenu.style.transform = '';
+      }
+      regSubmenu.classList.add('visible');
+    });
+
+    document.getElementById('btn-qr').addEventListener('click', () => openPanel('qr'));
+    document.getElementById('btn-input').addEventListener('click', () => openPanel('input'));
+
+    // キャンバスクリックでサブメニューを閉じる
+    document.addEventListener('click', e => {
+      if (!regSubmenu.contains(e.target) && e.target.id !== 'btn-register') {
+        regSubmenu.classList.remove('visible');
+      }
+    });
+
+    // ===== QRスキャン (iPad/iPhone対応) =====
+    async function startQR() {
+      const video = document.getElementById('qr-video');
+      const qc    = document.getElementById('qr-canvas');
+
+      // すでに起動中なら何もしない
+      if (qrStream) return;
+
+      // カメラAPIが使えない環境のチェック
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        showToast('このブラウザはカメラに対応していません', 'rgba(140,20,20,0.95)');
+        qrSection.classList.remove('visible');
+        return;
+      }
+
+      try {
+        // iPad/iPhoneは backカメラを優先（environment）
+        qrStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: 'environment' },
+            width:  { ideal: 1280 },
+            height: { ideal: 720 }
+          }
+        });
+        video.srcObject = qrStream;
+
+        // iOS Safari は play() の呼び出しが必要
+        video.play().catch(() => {});
+
+        // カメラ映像の準備を待ってからスキャン開始
+        video.addEventListener('loadedmetadata', startScan, { once: true });
+        // 念のため3秒後にも試みる
+        setTimeout(startScan, 3000);
+
+        function startScan() {
+          if (qrRaf) return; // 二重起動防止
+          scan();
+        }
+
+        function scan() {
+          if (!qrStream) return;
+          const w = video.videoWidth, h = video.videoHeight;
+          if (w > 0 && h > 0) {
+            qc.width = w; qc.height = h;
+            const qCtx = qc.getContext('2d');
+            qCtx.drawImage(video, 0, 0, w, h);
+            const img  = qCtx.getImageData(0, 0, w, h);
+            const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
+            if (code) {
+              stopQR();
+              fillFromQR(code.data);
+              qrSection.classList.remove('visible');
+              return;
+            }
+          }
+          qrRaf = requestAnimationFrame(scan);
+        }
+
+      } catch (err) {
+        qrSection.classList.remove('visible');
+        if (err.name === 'NotAllowedError') {
+          showToast('カメラの使用を許可してください', 'rgba(140,20,20,0.95)');
+        } else {
+          showToast('カメラを起動できません: ' + err.message, 'rgba(140,20,20,0.95)');
+        }
+      }
+    }
+
+    function stopQR() {
+      if (qrRaf) { cancelAnimationFrame(qrRaf); qrRaf = null; }
+      if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
+    }
+
+    function fillFromQR(data) {
+      try {
+        const obj = JSON.parse(data);
+        setField('f-site',        obj.siteName   || '');
+        setField('f-part-name',   obj.partName   || '');
+        setField('f-part-type',   obj.partType   || '');
+        setField('f-mfg-date',    obj.mfgDate    || '');
+        setField('f-seizou-line', obj.seizouLine || '');
+        setField('f-mold-no',     obj.moldNo     || '');
+        setField('f-strength',    obj.strength   || '');
+      } catch {
+        const lines = data.split(/[\n,]/);
+        setField('f-site',        lines[0] || '');
+        setField('f-part-name',   lines[1] || '');
+        setField('f-part-type',   lines[2] || '');
+        setField('f-mfg-date',    lines[3] || '');
+        setField('f-seizou-line', lines[4] || '');
+        setField('f-mold-no',     lines[5] || '');
+        setField('f-strength',    lines[6] || '');
+      }
+      showToast('QRコードを読み取りました');
+    }
+
+    function setField(id, val) { document.getElementById(id).value = val; }
+
+    // ===== 日付パース =====
+    // 入力例：2026326 → 2026年3月26日、2026126 → 2026年12月6日
+    function parseDateInput(val) {
+      const s = val.replace(/\D/g, '');
+      if (s.length < 5 || s.length > 8) return null;
+
+      const year = parseInt(s.substring(0, 4), 10);
+      if (year < 2000 || year > 2100) return null;
+
+      const rest = s.substring(4);
+      let month = null, day = null;
+
+      if (rest.length === 2) {
+        // YYYYMD → 1桁月 + 1桁日
+        month = parseInt(rest[0], 10);
+        day   = parseInt(rest[1], 10);
+      } else if (rest.length === 3) {
+        // まず2桁月+1桁日を試みる（例: 126 → 12月6日）
+        const m2 = parseInt(rest.substring(0, 2), 10);
+        const d1 = parseInt(rest.substring(2), 10);
+        if (m2 >= 1 && m2 <= 12 && d1 >= 1 && d1 <= 31) {
+          month = m2; day = d1;
+        } else {
+          // 1桁月+2桁日（例: 326 → 3月26日）
+          month = parseInt(rest[0], 10);
+          day   = parseInt(rest.substring(1), 10);
+        }
+      } else if (rest.length === 4) {
+        // YYYYMMDD → 2桁月+2桁日
+        month = parseInt(rest.substring(0, 2), 10);
+        day   = parseInt(rest.substring(2), 10);
+      }
+
+      if (!month || !day) return null;
+      if (month < 1 || month > 12) return null;
+      if (day   < 1 || day   > 31) return null;
+
+      return `${year}年${month}月${day}日`;
+    }
+
+    // 入力中にプレビュー表示
+    document.getElementById('f-mfg-date').addEventListener('input', e => {
+      const preview = document.getElementById('f-mfg-date-preview');
+      const parsed = parseDateInput(e.target.value);
+      preview.textContent = parsed ? `→ ${parsed}` : (e.target.value ? '日付の形式が正しくありません' : '');
+      preview.style.color = parsed ? '#9fb' : '#f99';
+    });
+
+    function clearRegForm() {
+      ['f-site','f-part-name','f-part-type','f-mfg-date','f-seizou-line','f-mold-no','f-strength'].forEach(id => setField(id, ''));
+      document.getElementById('f-mfg-date-preview').textContent = '';
+      regError.classList.remove('visible');
+    }
+
+    // 部件名変更 → 製品番号リストをCSVで絞り込み
+    document.getElementById('f-site').addEventListener('input', e => {
+      updatePartNameListFromCsv(e.target.value.trim());
+    });
+    document.getElementById('f-site').addEventListener('change', e => {
+      updatePartNameListFromCsv(e.target.value.trim());
+    });
+
+    // 製品番号変更 → CSVから部材種を自動入力
+    document.getElementById('f-part-name').addEventListener('change', e => {
+      const siteName = document.getElementById('f-site').value.trim();
+      autoFillPartType(siteName, e.target.value.trim());
+    });
+
+    // ===== 登録ボタン =====
+    document.getElementById('btn-reg-submit').addEventListener('click', () => {
+      const siteName  = document.getElementById('f-site').value.trim();
+      const partName  = document.getElementById('f-part-name').value.trim();
+
+      if (!siteName || !partName) { regError.classList.add('visible'); return; }
+      regError.classList.remove('visible');
+
+      // 最後の未登録マーカーを取得
+      let target = null;
+      for (let i = markers.length - 1; i >= 0; i--) {
+        if (!markers[i].registered) { target = markers[i]; break; }
+      }
+      if (!target) {
+        showToast('先に地図上で場所をタップしてください', 'rgba(140,20,20,0.95)');
+        return;
+      }
+
+      target.info = {
+        siteName,
+        partName,
+        partType:   document.getElementById('f-part-type').value,
+        mfgDate:    parseDateInput(document.getElementById('f-mfg-date').value) || document.getElementById('f-mfg-date').value,
+        seizouLine: document.getElementById('f-seizou-line').value.trim(),
+        moldNo:     document.getElementById('f-mold-no').value.trim(),
+        strength:   document.getElementById('f-strength').value.trim(),
+      };
+      target.registered  = true;
+      target.pendingHide = true;
+
+      saveMarkers();      // localStorage に保存
+      populateDropdowns(); // 新しく登録した情報をリストに反映
+      clearRegForm();
+      clearLayerSelection();
+      render();
+      showToast('登録しました');
+      closePanelKeepSearch();
+
+      // 2秒後に○を非表示
+      setTimeout(() => {
+        target.pendingHide = false;
+        render();
+      }, 2000);
+    });
+
+    // ===== 検索 =====
+    document.getElementById('btn-search').addEventListener('click', () => openPanel('search'));
+
+    document.getElementById('btn-search-exec').addEventListener('click', () => {
+      const sSite      = document.getElementById('s-site').value;
+      const sPartName  = document.getElementById('s-part-name').value;
+      const sPartType  = document.getElementById('s-part-type').value;
+      const sMfgDate   = document.getElementById('s-mfg-date').value;
+      const sSezouLine = document.getElementById('s-seizou-line').value;
+
+      if (!sSite && !sPartName && !sPartType && !sMfgDate && !sSezouLine) {
+        showToast('検索条件を選んでください', 'rgba(140,80,20,0.95)');
+        return;
+      }
+
+      const norm = s => s.trim().toLowerCase();
+      const nSite      = norm(sSite);
+      const nPartName  = norm(sPartName);
+      const nPartType  = norm(sPartType);
+      const nMfgDate   = norm(sMfgDate);
+      const nSezouLine = norm(sSezouLine);
+
+      searchVisibleIds.clear();
+      markers.forEach(m => {
+        if (!m.registered || !m.info) return;
+        const i = m.info;
+        if (nSite      && !norm(i.siteName   || '').includes(nSite))      return;
+        if (nPartName  && !norm(i.partName   || '').includes(nPartName))  return;
+        if (nPartType  && !norm(i.partType   || '').includes(nPartType))  return;
+        if (nMfgDate   && !norm(i.mfgDate    || '').includes(nMfgDate))   return;
+        if (nSezouLine && !norm(i.seizouLine || '').includes(nSezouLine)) return;
+        searchVisibleIds.add(m.id);
+      });
+
+      const found = markers.filter(m => searchVisibleIds.has(m.id));
+
+      if (found.length === 0) {
+        showToast('該当する製品が見つかりません', 'rgba(140,20,20,0.95)');
+        render();
+        return;
+      }
+
+      btnClear.classList.add('visible');
+      render();
+      centerOnMarkers(found);
+
+      if (isPhone) {
+        // iPhone: パネルを閉じて地図に結果表示。マーカーをタップで詳細確認
+        closePanelKeepSearch();
+        showToast(found.length === 1 ? '1件見つかりました' : `${found.length}件見つかりました`);
+      } else {
+        if (found.length === 1) {
+          openInfo(found[0]);
+        } else {
+          closePanelKeepSearch();
+          showToast(`${found.length}件見つかりました。マーキングをタップしてください`);
+        }
+      }
+    });
+
+    function centerOnMarkers(list) {
+      if (!list.length) return;
+      if (list.length === 1) {
+        // 1件の場合は画面中央に移動
+        offsetX = canvas.width  / 2 - list[0].x * scale;
+        offsetY = canvas.height / 2 + list[0].y * scale;
+      } else {
+        // 複数件の場合はすべてが収まるようにフィット
+        const xs = list.map(m => m.x), ys = list.map(m => m.y);
+        const b = { minX: Math.min(...xs), maxX: Math.max(...xs),
+                    minY: Math.min(...ys), maxY: Math.max(...ys) };
+        // 少し余白を加えてフィット
+        const pad = Math.max((b.maxX - b.minX), (b.maxY - b.minY)) * 0.3 + 5000;
+        applyFit({ minX: b.minX - pad, maxX: b.maxX + pad,
+                   minY: b.minY - pad, maxY: b.maxY + pad });
+      }
+      render();
+    }
+
+    // 段数選択を解除する共通関数
+    function clearLayerSelection() {
+      selectedLayer = null;
+      document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+    }
+
+    // ===== クリア =====
+    btnClear.addEventListener('click', () => {
+      searchVisibleIds.clear();
+      btnClear.classList.remove('visible');
+      render();
+    });
+
+    // ===== 段数ボタン =====
+    document.querySelectorAll('.layer-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        selectedLayer = parseInt(btn.dataset.layer);
+        document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+      });
+    });
+
+    // キャンバスサイズ更新 + 全体フィット（iPhone は innerHeight で確実に計算）
+    function fitAll() {
+      canvas.width = container.clientWidth;
+      canvas.height = isPhone
+        ? Math.floor(window.innerHeight - 44 - 92)
+        : container.clientHeight;
+      if (fitBounds) { applyFit(fitBounds); render(); }
+    }
+
+    document.getElementById('btn-fit').addEventListener('click', fitAll);
+
+    // ===== DXF ユーティリティ =====
+    function buildSiteBoundary() {
+      siteBoundaryLines = [];
+      if (!fitBounds) return;
+      const margin = 50000;
+      (dxf.entities || []).forEach(e => {
+        if (e.type !== 'LINE' || e.layer !== '_0-1_') return;
+        if (!e.vertices || e.vertices.length < 2) return;
+        const x1=e.vertices[0].x, y1=e.vertices[0].y;
+        const x2=e.vertices[1].x, y2=e.vertices[1].y;
+        // fitBoundsの範囲内のLINEのみ使用（飛び地の線を除外）
+        if (x1 < fitBounds.minX - margin || x1 > fitBounds.maxX + margin) return;
+        if (y1 < fitBounds.minY - margin || y1 > fitBounds.maxY + margin) return;
+        siteBoundaryLines.push({ x1, y1, x2, y2 });
+      });
+    }
+
+    function isInsideSiteBoundary(px, py) {
+      if (!siteBoundaryLines.length) return true; // 境界未取得時は制限なし
+      // レイキャスティング（+x方向に射影）
+      let crossings = 0;
+      for (const s of siteBoundaryLines) {
+        if ((s.y1 > py) !== (s.y2 > py)) {
+          const xInt = s.x1 + (py - s.y1) * (s.x2 - s.x1) / (s.y2 - s.y1);
+          if (px < xInt) crossings++;
+        }
+      }
+      return crossings % 2 === 1;
+    }
+
+    function buildNoPlacementZones() {
+      noPlacementZones = [];
+      (dxf.entities || []).forEach(e => {
+        if (e.type !== 'SOLID') return;
+        const pts = e.points;
+        if (!pts || pts.length < 3) return;
+        noPlacementZones.push(pts);
+      });
+    }
+
+    function buildAddressCells() {
+      addressCells = [];
+      const entities = dxf.entities || [];
+      const lines4 = entities.filter(e => e.type === 'LINE' && e.layer === '_0-4_');
+      const texts4 = entities.filter(e => (e.type === 'TEXT' || e.type === 'MTEXT') && e.layer === '_0-4_');
+      if (!lines4.length || !texts4.length) return;
+
+      // グリッド線のX・Y座標を収集（近い値は同じ線とみなす）
+      const rawX = [], rawY = [];
+      lines4.forEach(e => {
+        if (!e.vertices || e.vertices.length < 2) return;
+        rawX.push(e.vertices[0].x, e.vertices[1].x);
+        rawY.push(e.vertices[0].y, e.vertices[1].y);
+      });
+
+      function dedup(arr, tol = 200) {
+        const sorted = [...arr].sort((a, b) => a - b);
+        const res = [];
+        for (const v of sorted) {
+          if (!res.length || v - res[res.length - 1] > tol) res.push(v);
+        }
+        return res;
+      }
+
+      const sortedX = dedup(rawX);
+      const sortedY = dedup(rawY);
+
+      // 各TEXTの座標からセルの境界を特定
+      texts4.forEach(t => {
+        const pos = t.startPoint || t.insertionPoint || t.position;
+        if (!pos) return;
+        const address = (t.text || t.string || '').trim();
+        if (!address) return;
+
+        const tx = pos.x, ty = pos.y;
+
+        let x1 = null, x2 = null;
+        for (let i = 0; i < sortedX.length - 1; i++) {
+          if (sortedX[i] <= tx && tx <= sortedX[i + 1]) { x1 = sortedX[i]; x2 = sortedX[i + 1]; break; }
+        }
+        let y1 = null, y2 = null;
+        for (let i = 0; i < sortedY.length - 1; i++) {
+          if (sortedY[i] <= ty && ty <= sortedY[i + 1]) { y1 = sortedY[i]; y2 = sortedY[i + 1]; break; }
+        }
+        if (x1 === null || y1 === null) return;
+
+        addressCells.push({ minX: x1, maxX: x2, minY: y1, maxY: y2, address });
+      });
+    }
+
+    function getAddressAt(x, y) {
+      for (const cell of addressCells) {
+        if (x >= cell.minX && x <= cell.maxX && y >= cell.minY && y <= cell.maxY) {
+          return cell.address;
+        }
+      }
+      return null;
+    }
+
+    function pointInTriangle(px,py,ax,ay,bx,by,cx,cy) {
+      const d1=(px-bx)*(ay-by)-(ax-bx)*(py-by);
+      const d2=(px-cx)*(by-cy)-(bx-cx)*(py-cy);
+      const d3=(px-ax)*(cy-ay)-(cx-ax)*(py-ay);
+      return !((d1<0||d2<0||d3<0)&&(d1>0||d2>0||d3>0));
+    }
+
+    function isInNoPlacementZone(x, y) {
+      for (const pts of noPlacementZones) {
+        const p0=pts[0],p1=pts[1],p2=pts[2],p3=pts[3]||pts[2];
+        if (pointInTriangle(x,y,p0.x,p0.y,p1.x,p1.y,p3.x,p3.y)) return true;
+        if (pointInTriangle(x,y,p0.x,p0.y,p3.x,p3.y,p2.x,p2.y)) return true;
+      }
+      return false;
+    }
+
+    function showNoPlaceMsg(cx, cy, text = 'ここには製品を置けません') {
+      const msg = document.getElementById('no-place-msg');
+      msg.textContent = text;
+      msg.style.display = 'block'; // 一旦表示してwidthを取得
+      const r   = container.getBoundingClientRect();
+      const w   = msg.offsetWidth || 260;
+      const h   = msg.offsetHeight || 40;
+      // タップ位置の右斜め上に表示
+      let lx = cx - r.left + 16;
+      let ly = cy - r.top  - h - 12;
+      // 画面右端を超えたら左側に
+      if (lx + w > r.width)  lx = cx - r.left - w - 16;
+      // 画面上端を超えたら下側に
+      if (ly < 0)             ly = cy - r.top + 16;
+      msg.style.left = lx + 'px';
+      msg.style.top  = ly + 'px';
+      clearTimeout(msg._t);
+      msg._t = setTimeout(() => { msg.style.display = 'none'; }, 2000);
+    }
+
+    function aciToColor(aci) {
+      const m = {2:'#ffff00',3:'#00cc00',4:'#00cccc',5:'#0055ff',7:'#ffffff',
+                 9:'#c0c0c0',17:'#8b3300',91:'#78c878',160:'#8888ff',211:'#dd44dd',212:'#ff88cc'};
+      return m[aci] ?? '#ffffff';
+    }
+    function getColor(e) { return aciToColor(e.colorIndex ?? 7); }
+
+    function computeBounds(entities, layerFilter) {
+      let minX=Infinity,maxX=-Infinity,minY=Infinity,maxY=-Infinity;
+      function upd(x,y) {
+        if (!isFinite(x)||!isFinite(y)) return;
+        if(x<minX)minX=x;if(x>maxX)maxX=x;if(y<minY)minY=y;if(y>maxY)maxY=y;
+      }
+      entities.forEach(e => {
+        if (layerFilter && !layerFilter.includes(e.layer)) return;
+        try {
+          if (e.type==='LINE') { upd(e.vertices[0].x,e.vertices[0].y); upd(e.vertices[1].x,e.vertices[1].y); }
+          else if (e.type==='LWPOLYLINE'||e.type==='POLYLINE') (e.vertices||[]).forEach(v=>upd(v.x,v.y));
+          else if (e.type==='CIRCLE'||e.type==='ARC') { upd(e.center.x-e.radius,e.center.y-e.radius); upd(e.center.x+e.radius,e.center.y+e.radius); }
+          else if (e.type==='SOLID') [e.corner1,e.corner2,e.corner3,e.corner4].forEach(c=>c&&upd(c.x,c.y));
+          else if (e.type==='TEXT'||e.type==='MTEXT') { const p=e.position||e.insertionPoint; if(p)upd(p.x,p.y); }
+        } catch(_){}
+      });
+      return isFinite(minX) ? {minX,maxX,minY,maxY} : null;
+    }
+
+    function applyFit(b) {
+      if (!b) return;
+      const dw=b.maxX-b.minX, dh=b.maxY-b.minY;
+      if (dw===0||dh===0) return;
+      scale = Math.min(canvas.width/dw, canvas.height/dh) * 0.90;
+      offsetX = (canvas.width  - dw*scale)/2 - b.minX*scale;
+      offsetY = (canvas.height - dh*scale)/2 + b.maxY*scale;
+    }
+
+    function toScreen(x,y) { return { sx: x*scale+offsetX, sy: -y*scale+offsetY }; }
+
+    // ===== 描画 =====
+    function render() {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      ctx.fillStyle='#000'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      if (!dxf) return;
+
+      (dxf.entities||[]).forEach(e => {
+        try {
+          // _0-0_ レイヤーは表示範囲計算用のみ、描画しない
+          if (e.layer === '_0-0_') return;
+          // fitBounds範囲を大きく外れたLINEはスキップ（飛び地の注釈線など）
+          if (e.type === 'LINE' && fitBounds && e.vertices) {
+            const margin = 50000;
+            const x1=e.vertices[0].x, y1=e.vertices[0].y;
+            if (x1 < fitBounds.minX - margin || x1 > fitBounds.maxX + margin) return;
+            if (y1 < fitBounds.minY - margin || y1 > fitBounds.maxY + margin) return;
+          }
+          const color = getColor(e);
+          if (e.type==='LINE') {
+            const p1=toScreen(e.vertices[0].x,e.vertices[0].y), p2=toScreen(e.vertices[1].x,e.vertices[1].y);
+            ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=1;
+            ctx.moveTo(p1.sx,p1.sy); ctx.lineTo(p2.sx,p2.sy); ctx.stroke();
+          } else if (e.type==='LWPOLYLINE'||e.type==='POLYLINE') {
+            const v=e.vertices||[]; if(v.length<2)return;
+            ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=1;
+            const f=toScreen(v[0].x,v[0].y); ctx.moveTo(f.sx,f.sy);
+            for(let i=1;i<v.length;i++){const p=toScreen(v[i].x,v[i].y);ctx.lineTo(p.sx,p.sy);}
+            if(e.shape)ctx.closePath(); ctx.stroke();
+          } else if (e.type==='CIRCLE') {
+            const c=toScreen(e.center.x,e.center.y);
+            ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=1;
+            ctx.arc(c.sx,c.sy,e.radius*scale,0,Math.PI*2); ctx.stroke();
+          } else if (e.type==='ARC') {
+            const c=toScreen(e.center.x,e.center.y);
+            ctx.beginPath(); ctx.strokeStyle=color; ctx.lineWidth=1;
+            ctx.arc(c.sx,c.sy,e.radius*scale,-e.endAngle*Math.PI/180,-e.startAngle*Math.PI/180); ctx.stroke();
+          } else if (e.type==='SOLID') {
+            const pts=e.points; if(!pts||pts.length<3)return;
+            const p1=toScreen(pts[0].x,pts[0].y),p2=toScreen(pts[1].x,pts[1].y),
+                  p3=toScreen(pts[2].x,pts[2].y),p4=pts[3]?toScreen(pts[3].x,pts[3].y):p3;
+            ctx.beginPath(); ctx.fillStyle=color; ctx.strokeStyle=color; ctx.lineWidth=1.5;
+            ctx.moveTo(p1.sx,p1.sy);ctx.lineTo(p2.sx,p2.sy);ctx.lineTo(p4.sx,p4.sy);ctx.lineTo(p3.sx,p3.sy);
+            ctx.closePath(); ctx.fill(); ctx.stroke();
+          } else if (e.type==='TEXT'||e.type==='MTEXT') {
+            const pos=e.startPoint||e.insertionPoint||e.position; if(!pos)return;
+            const p=toScreen(pos.x,pos.y);
+            const sz=(e.textHeight||e.nominalTextHeight||1000)*scale;
+            if(sz<4)return;
+            ctx.fillStyle=color; ctx.font=`${Math.min(sz,24)}px sans-serif`;
+            ctx.fillText(e.text||e.string||'',p.sx,p.sy);
+          }
+        } catch(_){}
+      });
+
+      // マーカー描画
+      markers.forEach(m => {
+        const isPending  = !m.registered;              // 未登録（タップ直後）
+        const isHiding   = m.registered && m.pendingHide; // 登録直後の2秒
+        const isSearch   = m.registered && !m.pendingHide && searchVisibleIds.has(m.id);
+        if (!isPending && !isHiding && !isSearch) return;
+
+        const p = toScreen(m.x, m.y);
+        const r = isSearch ? 9 : 7;
+
+        ctx.beginPath();
+        ctx.arc(p.sx, p.sy, r, 0, Math.PI*2);
+        ctx.fillStyle = LAYER_COLORS[m.layer];
+        ctx.fill();
+        ctx.strokeStyle = isPending ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.5)';
+        ctx.lineWidth   = isPending ? 2.5 : 1.5;
+        ctx.stroke();
+
+        // 未登録は「?」マーク
+        if (isPending) {
+          ctx.fillStyle='#fff'; ctx.font='bold 9px sans-serif';
+          ctx.textAlign='center'; ctx.textBaseline='middle';
+          ctx.fillText('?', p.sx, p.sy);
+          ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+        }
+
+        // 検索結果はラベル表示
+        if (isSearch && m.info) {
+          const label = `${m.info.siteName} ${m.info.partName}`;
+          const lx = p.sx + 12, ly = p.sy - 6;
+          ctx.font='bold 15px sans-serif';
+          ctx.fillStyle='rgba(0,0,0,0.75)';
+          ctx.fillRect(lx - 3, ly - 16, label.length * 9 + 8, 21);
+          ctx.fillStyle = '#fff';
+          ctx.fillText(label, lx, ly);
+        }
+      });
+    }
+
+    // ===== マウス操作 =====
+    let isDragging=false, dragMoved=false, lastX=0, lastY=0;
+    let isMidDrag=false, midLastX=0, midLastY=0;
+
+    canvas.addEventListener('mousedown', e => {
+      if (e.button===0) { isDragging=true; dragMoved=false; lastX=e.clientX; lastY=e.clientY; }
+      else if (e.button===1) { e.preventDefault(); isMidDrag=true; canvas.classList.add('dragging'); midLastX=e.clientX; midLastY=e.clientY; }
+    });
+    canvas.addEventListener('mousemove', e => {
+      if (isMidDrag) { offsetX+=e.clientX-midLastX; offsetY+=e.clientY-midLastY; midLastX=e.clientX; midLastY=e.clientY; render(); }
+      if (isDragging) {
+        const dx=e.clientX-lastX, dy=e.clientY-lastY;
+        if(Math.abs(dx)>3||Math.abs(dy)>3) dragMoved=true;
+        offsetX+=dx; offsetY+=dy; lastX=e.clientX; lastY=e.clientY; render();
+      }
+    });
+    canvas.addEventListener('mouseup', e => {
+      if (e.button===1) { isMidDrag=false; canvas.classList.remove('dragging'); return; }
+      if (e.button!==0) return;
+      if (!dragMoved && dxf) placeMarker(e.clientX, e.clientY);
+      isDragging=false; canvas.classList.remove('dragging');
+    });
+    canvas.addEventListener('mouseleave', () => { isDragging=false; isMidDrag=false; canvas.classList.remove('dragging'); });
+    canvas.addEventListener('wheel', e => {
+      e.preventDefault();
+      const r=canvas.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
+      const z=e.deltaY<0?1.15:0.87;
+      offsetX=px-(px-offsetX)*z; offsetY=py-(py-offsetY)*z; scale*=z; render();
+    }, {passive:false});
+
+    // ===== タッチ操作 =====
+    let lastTouches=null, touchMoved=false;
+
+    canvas.addEventListener('touchstart', e => {
+      e.preventDefault();
+      lastTouches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
+      touchMoved = false;
+    }, {passive:false});
+
+    canvas.addEventListener('touchmove', e => {
+      e.preventDefault();
+      const cur = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
+      if (cur.length===1 && lastTouches?.length===1) {
+        const dx=cur[0].x-lastTouches[0].x, dy=cur[0].y-lastTouches[0].y;
+        if (Math.abs(dx)>4||Math.abs(dy)>4) touchMoved=true;
+        offsetX+=dx; offsetY+=dy; render();
+      } else if (cur.length===2 && lastTouches?.length===2) {
+        touchMoved=true;
+        const d1=Math.hypot(lastTouches[0].x-lastTouches[1].x,lastTouches[0].y-lastTouches[1].y);
+        const d2=Math.hypot(cur[0].x-cur[1].x,cur[0].y-cur[1].y);
+        const z=d1>0?d2/d1:1;
+        const r=canvas.getBoundingClientRect();
+        const px=(cur[0].x+cur[1].x)/2-r.left, py=(cur[0].y+cur[1].y)/2-r.top;
+        offsetX=px-(px-offsetX)*z; offsetY=py-(py-offsetY)*z; scale*=z; render();
+      }
+      lastTouches=cur;
+    }, {passive:false});
+
+    canvas.addEventListener('touchend', e => {
+      if (!touchMoved && e.changedTouches.length===1 && e.touches.length===0 && dxf) {
+        const t=e.changedTouches[0];
+        placeMarker(t.clientX, t.clientY);
+      }
+      lastTouches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
+    });
+
+    function findMarkerAt(sx, sy) {
+      const HIT = 16;
+      for (let i = markers.length - 1; i >= 0; i--) {
+        const m = markers[i];
+        const isPending = !m.registered;
+        const isHiding  = m.registered && m.pendingHide;
+        const isSearch  = m.registered && !m.pendingHide && searchVisibleIds.has(m.id);
+        if (!isPending && !isHiding && !isSearch) continue;
+        const p = toScreen(m.x, m.y);
+        if (Math.hypot(sx - p.sx, sy - p.sy) <= HIT) return m;
+      }
+      return null;
+    }
+
+    const LAYER_NAMES = { 1: '1段目', 2: '2段目', 3: '3段目' };
+
+    function openInfo(marker) {
+      panelTitle.textContent = '製品情報';
+      regForm.style.display = 'none';
+      searchForm.style.display = 'none';
+      qrSection.classList.remove('visible');
+      stopQR();
+
+      const infoPanel = document.getElementById('info-panel');
+      const unregMsg  = document.getElementById('info-unreg-msg');
+      infoPanel.classList.add('visible');
+      sidePanel.classList.add('open');
+      regSubmenu.classList.remove('visible');
+
+      // iPhone: 情報表示は全画面
+      if (isPhone) {
+        sidePanel.classList.remove('sp-mini');
+        sidePanel.classList.add('sp-full');
+      }
+
+      // 番地表示（一番上）
+      const addrBox = document.getElementById('i-address-box');
+      if (marker.address) {
+        document.getElementById('i-address').textContent = marker.address;
+        addrBox.classList.add('visible');
+      } else {
+        addrBox.classList.remove('visible');
+      }
+
+      const badge = document.getElementById('i-layer-badge');
+      badge.textContent = LAYER_NAMES[marker.layer];
+      badge.style.background = LAYER_COLORS[marker.layer];
+
+      if (!marker.info) {
+        unregMsg.style.display = 'block';
+        ['i-site','i-part-name','i-part-type','i-mfg-date','i-seizou-line','i-mold-no','i-strength']
+          .forEach(id => setInfoField(id, ''));
+      } else {
+        unregMsg.style.display = 'none';
+        const inf = marker.info;
+        setInfoField('i-site',        inf.siteName);
+        setInfoField('i-part-name',   inf.partName);
+        setInfoField('i-part-type',   inf.partType);
+        setInfoField('i-mfg-date',    inf.mfgDate);
+        setInfoField('i-seizou-line', inf.seizouLine);
+        setInfoField('i-mold-no',     inf.moldNo);
+        setInfoField('i-strength',    inf.strength);
+      }
+    }
+
+    function setInfoField(id, val) {
+      const el = document.getElementById(id);
+      if (val) { el.textContent = val; el.className = 'info-value'; }
+      else     { el.textContent = '—'; el.className = 'info-value empty'; }
+    }
+
+    function placeMarker(cx, cy) {
+      const r  = canvas.getBoundingClientRect();
+      const sx = cx - r.left;
+      const sy = cy - r.top;
+
+      // 既存マーカーのクリック判定（優先）
+      const hit = findMarkerAt(sx, sy);
+      if (hit) {
+        if (!hit.registered) {
+          // 未登録の○はタップで削除
+          markers.splice(markers.indexOf(hit), 1);
+          saveMarkers();
+          render();
+          showToast('○を削除しました', 'rgba(80,80,80,0.95)');
+          return;
+        }
+        openInfo(hit);
+        return;
+      }
+
+      // 新規マーカー配置
+      if (!selectedLayer) {
+        showNoPlaceMsg(cx, cy, '先に段数（1段目〜3段目）を選択してください');
+        return;
+      }
+      const x = (sx - offsetX) / scale;
+      const y = -(sy - offsetY) / scale;
+
+      // 緑の枠外チェック
+      if (!isInsideSiteBoundary(x, y)) {
+        showNoPlaceMsg(cx, cy, '緑の枠外にはマーキングできません');
+        return;
+      }
+      if (isInNoPlacementZone(x,y)) { showNoPlaceMsg(cx,cy); return; }
+      const address = getAddressAt(x, y);
+      markers.push({ id:nextId++, x, y, layer:selectedLayer, info:null, registered:false, pendingHide:false, address });
+      render();
+
+      // iPhone: マーカー確定後にトーストで案内
+      if (isPhone) {
+        showToast('場所を確定しました。製品登録→入力で登録できます');
+      }
+    }
+
+    window.addEventListener('resize', fitAll);
+
+    // ===== DXF 読み込み =====
+    async function loadDxf() {
+      try {
+        statusEl.textContent = 'DXFファイルを読み込み中...';
+        const res = await fetch('public/dxf/yard-map.dxf');
+        if (!res.ok) throw new Error('DXFファイルが見つかりません');
+        const text = new TextDecoder('shift-jis').decode(await res.arrayBuffer());
+        dxf = new DxfParser().parseSync(text);
+        const ents = dxf.entities || [];
+        fitBounds = computeBounds(ents, ['_0-0_']) || computeBounds(ents, null);
+        buildNoPlacementZones();
+        buildSiteBoundary();
+        buildAddressCells();
+        const types = ents.reduce((a,e)=>{a[e.type]=(a[e.type]||0)+1;return a;},{});
+        fitAll();
+        statusEl.textContent = '表示完了 / ' + Object.entries(types).map(([t,n])=>`${t}:${n}`).join(' ');
+        // iPhone: iOS Safari のレイアウト確定後に2回再フィット
+        if (isPhone) {
+          setTimeout(fitAll, 150);
+          setTimeout(fitAll, 600);
+        }
+      } catch(err) {
+        statusEl.textContent = 'エラー: ' + err.message;
+        console.error(err);
+      }
+    }
+
+    canvas.width=container.clientWidth; canvas.height=container.clientHeight;
+    render();
+    loadDxf();
+  </script>
+</body>
+</html>
