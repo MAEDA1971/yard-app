@@ -244,6 +244,26 @@
     }
     .mpn-cancel-btn:hover { background: #666; }
 
+    /* ===== 出荷機能 ===== */
+    #btn-shipment { background: #aa1a0a; }
+    #shipment-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.75); z-index: 300;
+      align-items: center; justify-content: center;
+    }
+    #shipment-overlay.open { display: flex; }
+    #shipment-dialog {
+      background: #1a2a3a; border-radius: 12px;
+      width: min(92vw, 420px);
+      display: flex; flex-direction: column;
+      border: 1px solid rgba(255,100,80,0.35); overflow: hidden;
+    }
+    .ship-submit-btn {
+      flex: 1; padding: 13px; background: #aa1a0a; border: none;
+      border-radius: 7px; color: #fff; font-size: 16px; font-weight: bold; cursor: pointer;
+    }
+    .ship-submit-btn:hover { background: #cc2200; }
+
     /* ===== リスト表示パネル共通 ===== */
     .btn-list-view {
       width: 100%; padding: 7px; margin-top: 6px;
@@ -283,31 +303,32 @@
       /* ツールバーをヘッダー直下の上部固定に */
       #marker-toolbar {
         position: fixed; top: 44px; left: 0; right: 0; bottom: auto;
-        transform: none; width: 100%; height: 92px;
+        transform: none; width: 100%; height: 138px;
         background: rgba(10,40,70,0.97);
         border-bottom: 1px solid rgba(255,255,255,0.25);
         display: grid; grid-template-columns: repeat(3, 1fr);
         gap: 5px; padding: 6px;
         z-index: 30; white-space: normal;
       }
-      /* ボタン順序：段数ボタン上段、操作ボタン下段 */
+      /* ボタン順序：段数ボタン1行目、操作ボタン2行目、出荷・クリア3行目 */
       .layer-btn[data-layer="1"] { order: 1; }
       .layer-btn[data-layer="2"] { order: 2; }
       .layer-btn[data-layer="3"] { order: 3; }
-      #btn-register { order: 4; background: #1a7a3a; }
-      #btn-search   { order: 5; background: #1a5a9a; }
-      #btn-clear    { order: 6; }
+      #btn-register  { order: 4; background: #1a7a3a; }
+      #btn-search    { order: 5; background: #1a5a9a; }
+      #btn-shipment  { order: 6; background: #aa1a0a; }
+      #btn-clear     { order: 7; }
       .toolbar-btn  { padding: 8px 2px; font-size: 12px; border-radius: 8px; }
 
       /* キャンバスエリア：ツールバー分だけ下にずらす */
       #canvas-container {
-        margin-top: 92px;
-        height: calc(100vh - 44px - 92px);
+        margin-top: 138px;
+        height: calc(100vh - 44px - 138px);
       }
 
-      /* サブメニューをトーストの下に配置（重ならないよう210px以下） */
+      /* サブメニューをトーストの下に配置 */
       #reg-submenu {
-        position: fixed; top: 210px; bottom: auto;
+        position: fixed; top: 260px; bottom: auto;
         left: 50%; transform: translateX(-50%);
         flex-direction: row; gap: 16px; padding: 10px 16px;
       }
@@ -346,7 +367,7 @@
       #side-panel.sp-full #btn-sp-expand { display: none; }
 
       /* トーストをツールバー直下に表示 */
-      #toast  { top: 148px; bottom: auto; left: 50%; transform: translateX(-50%); }
+      #toast  { top: 194px; bottom: auto; left: 50%; transform: translateX(-50%); }
       #status { bottom: 8px; }
 
       /* 入力フィールドを大きく */
@@ -375,6 +396,7 @@
       <button class="toolbar-btn layer-btn" data-layer="2">● 2段目</button>
       <button class="toolbar-btn layer-btn" data-layer="3">● 3段目</button>
       <button class="toolbar-btn" id="btn-search">検索</button>
+      <button class="toolbar-btn" id="btn-shipment">出荷</button>
       <button class="toolbar-btn" id="btn-clear">クリア</button>
     </div>
 
@@ -523,6 +545,34 @@
         </div>
         <button id="btn-sp-expand" class="btn-secondary" style="margin-bottom:6px">▼ 条件を追加・全表示</button>
         <button class="btn-secondary" id="btn-search-exec">検索する</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 出荷モーダル -->
+  <div id="shipment-overlay">
+    <div id="shipment-dialog">
+      <div class="mpn-hdr" style="background:#6a1000;">
+        <span>出荷登録</span>
+        <button class="mpn-hdr-close" id="ship-close">×</button>
+      </div>
+      <div class="mpn-body">
+        <p class="mpn-hint" style="color:#f9a;">出荷すると、ストックヤードから情報が削除されます。<br>部件名と製品番号を正確に入力してください。</p>
+        <div class="form-row">
+          <label>部件名（作業所名）<span class="req">★必須</span></label>
+          <input type="text" id="ship-site" list="dl-ship-site" placeholder="入力または▼から選択">
+          <datalist id="dl-ship-site"></datalist>
+        </div>
+        <div class="form-row">
+          <label>製品番号<span class="req">★必須</span></label>
+          <input type="text" id="ship-part-name" list="dl-ship-part" placeholder="入力または▼から選択">
+          <datalist id="dl-ship-part"></datalist>
+        </div>
+        <div class="error-msg" id="ship-error">部件名と製品番号は必須です</div>
+      </div>
+      <div class="mpn-footer">
+        <button class="ship-submit-btn" id="ship-submit">出荷する</button>
+        <button class="mpn-cancel-btn" id="ship-cancel">キャンセル</button>
       </div>
     </div>
   </div>
@@ -1046,6 +1096,77 @@
       btnModalList.classList.add('active');
     });
 
+    // ===== 出荷機能 =====
+    function populateShipDropdowns(siteName) {
+      const siteSet = new Set();
+      const partSet = new Set();
+      markers.forEach(m => {
+        if (!m.registered || !m.info) return;
+        if (m.info.siteName) siteSet.add(m.info.siteName);
+        if (!siteName || m.info.siteName === siteName) {
+          if (m.info.partName) partSet.add(m.info.partName);
+        }
+      });
+      Object.keys(csvMaster).forEach(s => siteSet.add(s));
+      if (siteName) {
+        (csvMaster[siteName] || []).forEach(r => { if (r.partName) partSet.add(r.partName); });
+      } else {
+        Object.values(csvMaster).flat().forEach(r => { if (r.partName) partSet.add(r.partName); });
+      }
+      const dlSite = document.getElementById('dl-ship-site');
+      dlSite.innerHTML = '';
+      [...siteSet].sort().forEach(s => { const o = document.createElement('option'); o.value = s; dlSite.appendChild(o); });
+      const dlPart = document.getElementById('dl-ship-part');
+      dlPart.innerHTML = '';
+      [...partSet].sort().forEach(p => { const o = document.createElement('option'); o.value = p; dlPart.appendChild(o); });
+    }
+
+    function openShipmentModal() {
+      populateShipDropdowns('');
+      document.getElementById('ship-site').value = '';
+      document.getElementById('ship-part-name').value = '';
+      document.getElementById('ship-error').classList.remove('visible');
+      document.getElementById('shipment-overlay').classList.add('open');
+    }
+
+    function closeShipmentModal() {
+      document.getElementById('shipment-overlay').classList.remove('open');
+    }
+
+    document.getElementById('btn-shipment').addEventListener('click', openShipmentModal);
+    document.getElementById('ship-close').addEventListener('click', closeShipmentModal);
+    document.getElementById('ship-cancel').addEventListener('click', closeShipmentModal);
+    document.getElementById('shipment-overlay').addEventListener('click', e => {
+      if (e.target === document.getElementById('shipment-overlay')) closeShipmentModal();
+    });
+    document.getElementById('ship-site').addEventListener('input', e => {
+      populateShipDropdowns(e.target.value.trim());
+    });
+    document.getElementById('ship-submit').addEventListener('click', () => {
+      const siteName = document.getElementById('ship-site').value.trim();
+      const partName = document.getElementById('ship-part-name').value.trim();
+      if (!siteName || !partName) {
+        document.getElementById('ship-error').classList.add('visible');
+        return;
+      }
+      const before = markers.length;
+      markers = markers.filter(m => {
+        if (!m.registered || !m.info) return true;
+        return !(m.info.siteName === siteName && m.info.partName === partName);
+      });
+      if (markers.length === before) {
+        showToast('該当する製品が見つかりません', 'rgba(140,20,20,0.95)');
+        return;
+      }
+      saveMarkers();
+      populateDropdowns();
+      searchVisibleIds.clear();
+      btnClear.classList.remove('visible');
+      render();
+      closeShipmentModal();
+      showToast('出荷登録しました');
+    });
+
     // iPhone: 全情報表示ボタン（ミニ → 全画面）
     document.getElementById('btn-sp-expand').addEventListener('click', () => {
       sidePanel.classList.remove('sp-mini');
@@ -1064,7 +1185,7 @@
         // position: fixed → ビューポート基準で位置を計算
         regSubmenu.style.left      = '50%';
         regSubmenu.style.transform = 'translateX(-50%)';
-        regSubmenu.style.top       = Math.max(btnRect.bottom + 75, 210) + 'px';
+        regSubmenu.style.top       = Math.max(btnRect.bottom + 75, 260) + 'px';
       } else {
         // position: absolute → canvas-container基準
         const cRect = container.getBoundingClientRect();
@@ -1281,6 +1402,13 @@
       target.registered  = true;
       target.pendingHide = true;
 
+      // 同じ製品の古い場所を削除（移動処理：新しい場所に更新）
+      markers = markers.filter(m => {
+        if (m.id === target.id) return true;       // 今登録したものは残す
+        if (!m.registered || !m.info) return true; // 未登録は残す
+        return !(m.info.siteName === siteName && m.info.partName === partName);
+      });
+
       saveMarkers();      // localStorage に保存
       populateDropdowns(); // 新しく登録した情報をリストに反映
       clearRegForm();
@@ -1413,7 +1541,7 @@
     function fitAll() {
       canvas.width = container.clientWidth;
       canvas.height = isPhone
-        ? Math.floor(window.innerHeight - 44 - 92)
+        ? Math.floor(window.innerHeight - 44 - 138)
         : container.clientHeight;
       if (fitBounds) { applyFit(fitBounds); render(); }
     }
