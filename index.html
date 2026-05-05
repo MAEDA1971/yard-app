@@ -244,6 +244,33 @@
     }
     .mpn-cancel-btn:hover { background: #666; }
 
+    /* ===== リスト表示パネル共通 ===== */
+    .btn-list-view {
+      width: 100%; padding: 7px; margin-top: 6px;
+      background: #162a40; border: 1px solid rgba(100,160,220,0.35);
+      border-radius: 5px; color: #7ab8e8; font-size: 13px; cursor: pointer; text-align: center;
+    }
+    .btn-list-view:hover { background: #1e3a58; }
+    .btn-list-view.active { background: #1e3a58; border-color: rgba(100,160,220,0.65); color: #aad4ff; }
+    .pn-list-panel {
+      margin-top: 6px; background: rgba(0,0,0,0.4);
+      border: 1px solid rgba(255,255,255,0.18); border-radius: 8px;
+      max-height: 210px; overflow-y: auto; display: none;
+      -webkit-overflow-scrolling: touch;
+    }
+    .pn-list-panel.open { display: block; }
+    .pn-list-item {
+      padding: 11px 14px; border-bottom: 1px solid rgba(255,255,255,0.08);
+      cursor: pointer; font-size: 14px; color: #ccc;
+      display: flex; align-items: center; gap: 10px;
+      user-select: none; -webkit-tap-highlight-color: transparent;
+    }
+    .pn-list-item:last-child { border-bottom: none; }
+    .pn-list-item:active { background: rgba(255,255,255,0.12); }
+    .pn-list-item.selected { background: rgba(200,200,200,0.14); color: #fff; }
+    .pn-check { width: 16px; color: #6fde8e; font-size: 15px; font-weight: bold; flex-shrink: 0; text-align: center; }
+    .pn-list-empty { padding: 12px 14px; color: rgba(255,255,255,0.35); font-size: 13px; text-align: center; }
+
     /* ===== iPhone専用スタイル ===== */
     #btn-sp-expand { display: none; }
 
@@ -478,6 +505,8 @@
         </div>
         <button type="button" id="btn-multi-pn">＋ 製品番号を複数選択する</button>
         <div id="multi-pn-summary"></div>
+        <button type="button" id="btn-single-list-view" class="btn-list-view">一覧から選ぶ ▼</button>
+        <div class="pn-list-panel" id="single-list-panel"></div>
         <div class="form-row sp-search-extra">
           <label>部材種</label>
           <input type="text" id="s-part-type"  list="dl-part-type"  placeholder="入力または▼から選択">
@@ -516,6 +545,8 @@
           <input type="text" id="modal-pn-input" list="dl-part-name" placeholder="製品番号を入力または選択">
           <button class="mpn-add-btn" id="modal-pn-add">追加</button>
         </div>
+        <button type="button" id="btn-modal-list-view" class="btn-list-view" style="margin-top:10px">一覧から選ぶ ▼</button>
+        <div class="pn-list-panel" id="modal-list-panel"></div>
       </div>
       <div class="mpn-footer">
         <button class="mpn-ok-btn" id="mpn-ok">OK</button>
@@ -843,6 +874,7 @@
       modalTempNames = [...multiPartNames];
       renderPnTags();
       document.getElementById('modal-pn-input').value = '';
+      resetModalListPanel();
       document.getElementById('multi-pn-overlay').classList.add('open');
       setTimeout(() => document.getElementById('modal-pn-input').focus(), 120);
     }
@@ -897,6 +929,121 @@
     });
     document.getElementById('multi-pn-overlay').addEventListener('click', e => {
       if (e.target === document.getElementById('multi-pn-overlay')) closeMultiPnModal(false);
+    });
+
+    // ===== 製品番号リスト表示（検索フォーム・モーダル共通） =====
+
+    // CSVマスタ＋登録済みマーカーから製品番号を取得（サイト名でフィルタ）
+    function getPartNameList(siteName) {
+      const set = new Set();
+      if (siteName) {
+        (csvMaster[siteName] || []).forEach(r => { if (r.partName) set.add(r.partName); });
+      } else {
+        Object.values(csvMaster).flat().forEach(r => { if (r.partName) set.add(r.partName); });
+      }
+      markers.forEach(m => {
+        if (!m.registered || !m.info) return;
+        if (siteName && m.info.siteName !== siteName) return;
+        if (m.info.partName) set.add(m.info.partName);
+      });
+      return [...set].sort();
+    }
+
+    // ===== 検索フォーム：単一選択リスト =====
+    const singleListPanel = document.getElementById('single-list-panel');
+    const btnSingleList   = document.getElementById('btn-single-list-view');
+
+    function renderSingleList(list) {
+      singleListPanel.innerHTML = '';
+      if (!list.length) {
+        singleListPanel.innerHTML = '<div class="pn-list-empty">CSVデータがありません<br>CSV取込ボタンでデータを読み込んでください</div>';
+        return;
+      }
+      list.forEach(name => {
+        const item = document.createElement('div');
+        item.className = 'pn-list-item';
+        item.innerHTML = `<span class="pn-check"></span><span>${name}</span>`;
+        item.addEventListener('click', () => {
+          document.getElementById('s-part-name').value = name;
+          multiPartNames = [];
+          updateMultiPnSummary();
+          singleListPanel.classList.remove('open');
+          btnSingleList.textContent = '一覧から選ぶ ▼';
+          btnSingleList.classList.remove('active');
+        });
+        singleListPanel.appendChild(item);
+      });
+    }
+
+    btnSingleList.addEventListener('click', () => {
+      if (singleListPanel.classList.contains('open')) {
+        singleListPanel.classList.remove('open');
+        btnSingleList.textContent = '一覧から選ぶ ▼';
+        btnSingleList.classList.remove('active');
+        return;
+      }
+      const siteName = document.getElementById('s-site').value.trim();
+      renderSingleList(getPartNameList(siteName));
+      singleListPanel.classList.add('open');
+      btnSingleList.textContent = '一覧を閉じる ▲';
+      btnSingleList.classList.add('active');
+    });
+
+    // 部件名が変わったらリストを更新
+    document.getElementById('s-site').addEventListener('input', e => {
+      if (singleListPanel.classList.contains('open')) {
+        renderSingleList(getPartNameList(e.target.value.trim()));
+      }
+    });
+
+    // ===== モーダル内：複数選択リスト =====
+    const modalListPanel = document.getElementById('modal-list-panel');
+    const btnModalList   = document.getElementById('btn-modal-list-view');
+
+    function renderModalList(list) {
+      modalListPanel.innerHTML = '';
+      if (!list.length) {
+        modalListPanel.innerHTML = '<div class="pn-list-empty">CSVデータがありません<br>CSV取込ボタンでデータを読み込んでください</div>';
+        return;
+      }
+      list.forEach(name => {
+        const item = document.createElement('div');
+        const isSel = modalTempNames.includes(name);
+        item.className = 'pn-list-item' + (isSel ? ' selected' : '');
+        item.innerHTML = `<span class="pn-check">${isSel ? '✓' : ''}</span><span>${name}</span>`;
+        item.addEventListener('click', () => {
+          const idx = modalTempNames.indexOf(name);
+          if (idx === -1) {
+            modalTempNames.push(name);
+            item.classList.add('selected');
+            item.querySelector('.pn-check').textContent = '✓';
+          } else {
+            modalTempNames.splice(idx, 1);
+            item.classList.remove('selected');
+            item.querySelector('.pn-check').textContent = '';
+          }
+          renderPnTags();
+        });
+        modalListPanel.appendChild(item);
+      });
+    }
+
+    function resetModalListPanel() {
+      modalListPanel.classList.remove('open');
+      btnModalList.textContent = '一覧から選ぶ ▼';
+      btnModalList.classList.remove('active');
+    }
+
+    btnModalList.addEventListener('click', () => {
+      if (modalListPanel.classList.contains('open')) {
+        resetModalListPanel();
+        return;
+      }
+      const siteName = document.getElementById('s-site').value.trim();
+      renderModalList(getPartNameList(siteName));
+      modalListPanel.classList.add('open');
+      btnModalList.textContent = '一覧を閉じる ▲';
+      btnModalList.classList.add('active');
     });
 
     // iPhone: 全情報表示ボタン（ミニ → 全画面）
