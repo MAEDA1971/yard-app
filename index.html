@@ -40,6 +40,20 @@
     .layer-btn[data-layer="1"] { background: #cc1010; }
     .layer-btn[data-layer="2"] { background: #bb8800; }
     .layer-btn[data-layer="3"] { background: #cc5500; }
+    .layer-btn[data-layer="4"] { background: #1a44cc; }
+    .layer-btn[data-layer="5"] { background: #777777; }
+    .layer-btn[data-layer="6"] { background: #228833; }
+    .layer-btn[data-layer="7"] { background: #882299; }
+    .layer-btn[data-layer="8"] { background: #dddddd; color: #333; }
+
+    /* 段数追加・減少ボタン */
+    #btn-layer-add, #btn-layer-remove {
+      padding: 7px 10px; border: 2px solid rgba(255,255,255,0.4); border-radius: 6px;
+      font-size: 16px; font-weight: bold; color: #fff; cursor: pointer;
+      background: #444;
+    }
+    #btn-layer-add:hover, #btn-layer-remove:hover { filter: brightness(1.2); }
+    #btn-layer-remove { display: none; }
 
     #btn-register { background: #1a7a3a; }
     #btn-search   { background: #1a5a9a; }
@@ -395,6 +409,8 @@
       <button class="toolbar-btn layer-btn" data-layer="1">● 1段目</button>
       <button class="toolbar-btn layer-btn" data-layer="2">● 2段目</button>
       <button class="toolbar-btn layer-btn" data-layer="3">● 3段目</button>
+      <button id="btn-layer-remove" title="段数を減らす">－</button>
+      <button id="btn-layer-add" title="段数を追加">＋</button>
       <button class="toolbar-btn" id="btn-search">検索</button>
       <button class="toolbar-btn" id="btn-shipment">出荷</button>
       <button class="toolbar-btn" id="btn-clear">クリア</button>
@@ -634,7 +650,11 @@
     let siteBoundaryLines = []; // { x1, y1, x2, y2 }  _0-1_ レイヤーの外周ライン
 
     // ===== マーカー =====
-    const LAYER_COLORS = { 1: '#ff3030', 2: '#ffcc00', 3: '#ff8800' };
+    const LAYER_COLORS = {
+      1: '#ff3030', 2: '#ffcc00', 3: '#ff8800',
+      4: '#2255ee', 5: '#999999', 6: '#33aa44',
+      7: '#aa33cc', 8: '#eeeeee'
+    };
     let selectedLayer = null;
     let markers = [];
     let nextId = 1;
@@ -1529,13 +1549,50 @@
     });
 
     // ===== 段数ボタン =====
-    document.querySelectorAll('.layer-btn').forEach(btn => {
+    function bindLayerBtn(btn) {
       btn.addEventListener('click', () => {
         selectedLayer = parseInt(btn.dataset.layer);
         document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
       });
+    }
+    document.querySelectorAll('.layer-btn').forEach(bindLayerBtn);
+
+    // ===== 段数追加・減少ボタン =====
+    const btnLayerAdd    = document.getElementById('btn-layer-add');
+    const btnLayerRemove = document.getElementById('btn-layer-remove');
+    const toolbar        = document.getElementById('marker-toolbar');
+    let   visibleLayers  = 3;
+
+    function updateLayerCtrlVisibility() {
+      btnLayerAdd.style.display    = visibleLayers >= 8 ? 'none' : 'inline-block';
+      btnLayerRemove.style.display = visibleLayers <= 1 ? 'none' : 'inline-block';
+    }
+
+    btnLayerAdd.addEventListener('click', () => {
+      if (visibleLayers >= 8) return;
+      visibleLayers++;
+      const newBtn = document.createElement('button');
+      newBtn.className = 'toolbar-btn layer-btn';
+      newBtn.dataset.layer = visibleLayers;
+      newBtn.textContent = `● ${LAYER_NAMES[visibleLayers]}`;
+      bindLayerBtn(newBtn);
+      toolbar.insertBefore(newBtn, btnLayerRemove);
+      updateLayerCtrlVisibility();
     });
+
+    btnLayerRemove.addEventListener('click', () => {
+      if (visibleLayers <= 1) return;
+      const btn = toolbar.querySelector(`.layer-btn[data-layer="${visibleLayers}"]`);
+      if (btn) {
+        if (selectedLayer === visibleLayers) clearLayerSelection();
+        btn.remove();
+      }
+      visibleLayers--;
+      updateLayerCtrlVisibility();
+    });
+
+    updateLayerCtrlVisibility();
 
     // キャンバスサイズ更新 + 全体フィット（iPhone は innerHeight で確実に計算）
     function fitAll() {
@@ -1788,8 +1845,10 @@
         ctx.arc(p.sx, p.sy, r, 0, Math.PI*2);
         ctx.fillStyle = LAYER_COLORS[m.layer];
         ctx.fill();
-        ctx.strokeStyle = isPending ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.5)';
-        ctx.lineWidth   = isPending ? 2.5 : 1.5;
+        // 8段目（白丸）は黒枠で見やすくする
+        const isWhite = m.layer === 8;
+        ctx.strokeStyle = isPending ? 'rgba(255,255,255,0.9)' : (isWhite ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)');
+        ctx.lineWidth   = isPending ? 2.5 : (isWhite ? 2 : 1.5);
         ctx.stroke();
 
         // 未登録は「?」マーク
@@ -1893,7 +1952,11 @@
       return null;
     }
 
-    const LAYER_NAMES = { 1: '1段目', 2: '2段目', 3: '3段目' };
+    const LAYER_NAMES = {
+      1: '1段目', 2: '2段目', 3: '3段目',
+      4: '4段目', 5: '5段目', 6: '6段目',
+      7: '7段目', 8: '8段目'
+    };
 
     function openInfo(marker) {
       panelTitle.textContent = '製品情報';
@@ -1972,7 +2035,7 @@
 
       // 新規マーカー配置
       if (!selectedLayer) {
-        showNoPlaceMsg(cx, cy, '先に段数（1段目〜3段目）を選択してください');
+        showNoPlaceMsg(cx, cy, '先に「段数選択」ボタンで段数を選んでください');
         return;
       }
       const x = (sx - offsetX) / scale;
