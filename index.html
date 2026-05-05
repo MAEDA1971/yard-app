@@ -409,8 +409,8 @@
       <button class="toolbar-btn layer-btn" data-layer="1">● 1段目</button>
       <button class="toolbar-btn layer-btn" data-layer="2">● 2段目</button>
       <button class="toolbar-btn layer-btn" data-layer="3">● 3段目</button>
-      <button id="btn-layer-remove" title="段数を減らす">－</button>
       <button id="btn-layer-add" title="段数を追加">＋</button>
+      <button id="btn-layer-remove" title="段数を減らす">－</button>
       <button class="toolbar-btn" id="btn-search">検索</button>
       <button class="toolbar-btn" id="btn-shipment">出荷</button>
       <button class="toolbar-btn" id="btn-clear">クリア</button>
@@ -1577,7 +1577,7 @@
       newBtn.dataset.layer = visibleLayers;
       newBtn.textContent = `● ${LAYER_NAMES[visibleLayers]}`;
       bindLayerBtn(newBtn);
-      toolbar.insertBefore(newBtn, btnLayerRemove);
+      toolbar.insertBefore(newBtn, btnLayerAdd);
       updateLayerCtrlVisibility();
     });
 
