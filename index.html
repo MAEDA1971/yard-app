@@ -391,15 +391,20 @@
         gap: 5px; padding: 6px;
         z-index: 30; white-space: normal;
       }
-      /* ボタン順序：1行目=段数、2行目=＋－検索、3行目=出荷クリア */
+      /* ボタン順序：段数ボタンが左から並び、その後に＋－検索出荷クリア */
       .layer-btn[data-layer="1"] { order: 1; }
       .layer-btn[data-layer="2"] { order: 2; }
       .layer-btn[data-layer="3"] { order: 3; }
-      #btn-layer-add    { order: 4; }
-      #btn-layer-remove { order: 5; }
-      #btn-search    { order: 6; background: #1a5a9a; }
-      #btn-shipment  { order: 7; background: #aa1a0a; }
-      #btn-clear     { order: 8; }
+      .layer-btn[data-layer="4"] { order: 4; }
+      .layer-btn[data-layer="5"] { order: 5; }
+      .layer-btn[data-layer="6"] { order: 6; }
+      .layer-btn[data-layer="7"] { order: 7; }
+      .layer-btn[data-layer="8"] { order: 8; }
+      #btn-layer-add    { order: 9; }
+      #btn-layer-remove { order: 10; }
+      #btn-search    { order: 11; background: #1a5a9a; }
+      #btn-shipment  { order: 12; background: #aa1a0a; }
+      #btn-clear     { order: 13; }
       .toolbar-btn  { padding: 8px 2px; font-size: 12px; border-radius: 8px; }
       #btn-layer-add, #btn-layer-remove { padding: 8px 2px; font-size: 14px; border-radius: 8px; }
 
@@ -1767,6 +1772,7 @@
       bindLayerBtn(newBtn);
       toolbar.insertBefore(newBtn, btnLayerAdd);
       updateLayerCtrlVisibility();
+      requestAnimationFrame(fitAll);
     });
 
     btnLayerRemove.addEventListener('click', () => {
@@ -1778,6 +1784,7 @@
       }
       visibleLayers--;
       updateLayerCtrlVisibility();
+      requestAnimationFrame(fitAll);
     });
 
     updateLayerCtrlVisibility();
@@ -1785,9 +1792,14 @@
     // キャンバスサイズ更新 + 全体フィット（iPhone は innerHeight で確実に計算）
     function fitAll() {
       canvas.width = container.clientWidth;
-      canvas.height = isPhone
-        ? Math.floor(window.innerHeight - 44 - 138)
-        : container.clientHeight;
+      if (isPhone) {
+        const tbH = toolbar.offsetHeight || 138;
+        canvas.height = Math.floor(window.innerHeight - 44 - tbH);
+        container.style.marginTop = tbH + 'px';
+        container.style.height = 'calc(100vh - 44px - ' + tbH + 'px)';
+      } else {
+        canvas.height = container.clientHeight;
+      }
       if (fitBounds) { applyFit(fitBounds); render(); }
     }
 
