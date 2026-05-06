@@ -1931,6 +1931,11 @@
     }
 
     function showNoPlaceMsg(cx, cy, text = 'ここには製品を置けません') {
+      // iPhone は fixed の toast で確実に表示
+      if (isPhone) {
+        showToast(text, 'rgba(180,0,0,0.95)');
+        return;
+      }
       const msg = document.getElementById('no-place-msg');
       msg.textContent = text;
       msg.style.display = 'block'; // 一旦表示してwidthを取得
