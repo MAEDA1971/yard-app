@@ -1554,7 +1554,7 @@
     function populateAddressDropdown() {
       const addresses = [...new Set(
         markers.filter(m => m.registered && m.address).map(m => m.address)
-      )].sort();
+      )].sort((a, b) => a.localeCompare(b, 'ja', { numeric: true }));
       sAddress.innerHTML = '<option value="">-- 番地を選択 --</option>';
       addresses.forEach(addr => {
         const opt = document.createElement('option');
