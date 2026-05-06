@@ -384,7 +384,7 @@
       /* ツールバーをヘッダー直下の上部固定に */
       #marker-toolbar {
         position: fixed; top: 44px; left: 0; right: 0; bottom: auto;
-        transform: none; width: 100%; height: 138px;
+        transform: none; width: 100%; min-height: 138px; height: auto;
         background: rgba(10,40,70,0.97);
         border-bottom: 1px solid rgba(255,255,255,0.25);
         display: grid; grid-template-columns: repeat(3, 1fr);
@@ -1772,7 +1772,7 @@
       bindLayerBtn(newBtn);
       toolbar.insertBefore(newBtn, btnLayerAdd);
       updateLayerCtrlVisibility();
-      requestAnimationFrame(fitAll);
+      requestAnimationFrame(() => requestAnimationFrame(fitAll));
     });
 
     btnLayerRemove.addEventListener('click', () => {
@@ -1784,7 +1784,7 @@
       }
       visibleLayers--;
       updateLayerCtrlVisibility();
-      requestAnimationFrame(fitAll);
+      requestAnimationFrame(() => requestAnimationFrame(fitAll));
     });
 
     updateLayerCtrlVisibility();
