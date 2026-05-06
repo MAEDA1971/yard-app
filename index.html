@@ -2327,10 +2327,12 @@
             const cnt = searchVisibleIds.size;
             showToast(cnt > 0 ? `【${cellAddr}】${cnt}件を表示` : `【${cellAddr}】ストックなし`,
                       cnt > 0 ? 'rgba(20,60,100,0.95)' : 'rgba(80,80,80,0.95)');
-          } else {
-            // マス目外クリック → 全マーキングを表示
+          } else if (isInsideSiteBoundary(x, y) && !isInNoPlacementZone(x, y)) {
+            // マス目外・置ける範囲クリック → 全マーキングを表示
             markers.filter(m => m.registered && m.info).forEach(m => searchVisibleIds.add(m.id));
             showToast(`全${searchVisibleIds.size}件のマーキングを表示`, 'rgba(20,60,100,0.95)');
+          } else {
+            return; // 置けない場所は何もしない
           }
           btnClear.classList.add('visible');
           render();
@@ -2348,7 +2350,11 @@
           showCellPopup(cx, cy, cellAddr, cellMarkers);
           return;
         }
-        // マス目外クリック → マス目以外の製品マーキングをすべて表示
+        // マス目外クリック → 製品を置ける範囲のみマーキング表示
+        if (!isInsideSiteBoundary(x, y) || isInNoPlacementZone(x, y)) {
+          showNoPlaceMsg(cx, cy, '先に「段数選択」ボタンで段数を選んでください');
+          return;
+        }
         const freeMarkers = markers.filter(m => m.registered && m.info && !m.address);
         if (freeMarkers.length > 0) {
           searchVisibleIds.clear();
