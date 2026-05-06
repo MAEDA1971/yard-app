@@ -116,6 +116,24 @@
     .form-row input::placeholder { color: rgba(255,255,255,0.35); }
     .form-row select option { background: #1a2a3a; color: #fff; }
 
+    /* 番地検索 */
+    .address-search-divider {
+      text-align: center; color: #7a9; font-size: 12px; margin: 12px 0 10px;
+      border-top: 1px solid rgba(255,255,255,0.15); padding-top: 12px;
+    }
+    .address-result-title {
+      font-size: 12px; color: #9ab; margin: 0 0 6px;
+    }
+    .address-result-item {
+      padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
+      font-size: 13px; color: #ddd;
+    }
+    .address-result-item span { color: #9ab; font-size: 11px; margin-right: 4px; }
+    #address-result-list {
+      background: rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.15);
+      border-radius: 8px; max-height: 200px; overflow-y: auto;
+    }
+
     .btn-primary {
       width: 100%; padding: 13px; background: #1a7a3a; border: none;
       border-radius: 7px; color: #fff; font-size: 16px; font-weight: bold; cursor: pointer; margin-top: 6px;
@@ -561,6 +579,19 @@
         </div>
         <button id="btn-sp-expand" class="btn-secondary" style="margin-bottom:6px">▼ 条件を追加・全表示</button>
         <button class="btn-secondary" id="btn-search-exec">検索する</button>
+
+        <!-- 番地検索 -->
+        <div class="address-search-divider">または</div>
+        <div class="form-row">
+          <label>番地で検索</label>
+          <select id="s-address">
+            <option value="">-- 番地を選択 --</option>
+          </select>
+        </div>
+        <div id="address-result-area" style="display:none">
+          <p class="address-result-title" id="address-result-title"></p>
+          <div id="address-result-list"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -1514,6 +1545,63 @@
       }
     });
 
+    // ===== 番地検索 =====
+    const sAddress          = document.getElementById('s-address');
+    const addressResultArea = document.getElementById('address-result-area');
+    const addressResultList = document.getElementById('address-result-list');
+    const addressResultTitle= document.getElementById('address-result-title');
+
+    function populateAddressDropdown() {
+      const addresses = [...new Set(
+        markers.filter(m => m.registered && m.address).map(m => m.address)
+      )].sort();
+      sAddress.innerHTML = '<option value="">-- 番地を選択 --</option>';
+      addresses.forEach(addr => {
+        const opt = document.createElement('option');
+        opt.value = addr;
+        opt.textContent = addr;
+        sAddress.appendChild(opt);
+      });
+    }
+
+    sAddress.addEventListener('change', () => {
+      const addr = sAddress.value;
+      addressResultArea.style.display = 'none';
+      addressResultList.innerHTML = '';
+      if (!addr) { searchVisibleIds.clear(); render(); btnClear.classList.remove('visible'); return; }
+
+      const found = markers.filter(m => m.registered && m.info && m.address === addr);
+      searchVisibleIds.clear();
+      found.forEach(m => searchVisibleIds.add(m.id));
+
+      if (found.length === 0) {
+        showToast('この番地に製品がありません', 'rgba(140,20,20,0.95)');
+        render();
+        return;
+      }
+
+      addressResultTitle.textContent = `【${addr}】の製品 ${found.length}件`;
+      found.forEach(m => {
+        const div = document.createElement('div');
+        div.className = 'address-result-item';
+        div.innerHTML =
+          `<span>現場名</span>${m.info.siteName || '－'}&emsp;` +
+          `<span>部材名</span>${m.info.partName || '－'}&emsp;` +
+          `<span>部材種</span>${m.info.partType || '－'}`;
+        addressResultList.appendChild(div);
+      });
+      addressResultArea.style.display = 'block';
+
+      btnClear.classList.add('visible');
+      render();
+      centerOnMarkers(found);
+      if (isPhone) closePanelKeepSearch();
+    });
+
+    // 検索パネルを開くたびにドロップダウンを更新
+    const origOpenSearch = () => {};
+    document.getElementById('btn-search').addEventListener('click', populateAddressDropdown, true);
+
     function centerOnMarkers(list) {
       if (!list.length) return;
       if (list.length === 1) {
@@ -1545,6 +1633,9 @@
       btnClear.classList.remove('visible');
       multiPartNames = [];
       updateMultiPnSummary();
+      sAddress.value = '';
+      addressResultArea.style.display = 'none';
+      addressResultList.innerHTML = '';
       render();
     });
 
