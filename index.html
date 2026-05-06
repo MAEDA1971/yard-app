@@ -391,14 +391,17 @@
         gap: 5px; padding: 6px;
         z-index: 30; white-space: normal;
       }
-      /* ボタン順序：段数ボタン1行目、操作ボタン2行目、出荷・クリア3行目 */
+      /* ボタン順序：1行目=段数、2行目=＋－検索、3行目=出荷クリア */
       .layer-btn[data-layer="1"] { order: 1; }
       .layer-btn[data-layer="2"] { order: 2; }
       .layer-btn[data-layer="3"] { order: 3; }
-      #btn-search    { order: 4; background: #1a5a9a; }
-      #btn-shipment  { order: 5; background: #aa1a0a; }
-      #btn-clear     { order: 6; }
+      #btn-layer-add    { order: 4; }
+      #btn-layer-remove { order: 5; }
+      #btn-search    { order: 6; background: #1a5a9a; }
+      #btn-shipment  { order: 7; background: #aa1a0a; }
+      #btn-clear     { order: 8; }
       .toolbar-btn  { padding: 8px 2px; font-size: 12px; border-radius: 8px; }
+      #btn-layer-add, #btn-layer-remove { padding: 8px 2px; font-size: 14px; border-radius: 8px; }
 
       /* キャンバスエリア：ツールバー分だけ下にずらす */
       #canvas-container {
