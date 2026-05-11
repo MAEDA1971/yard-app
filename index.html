@@ -1642,8 +1642,11 @@
         // ---- FileMaker 連携モード ----
         showToast('FileMakerから情報を取得中...');
         try {
-          const f = await fmFindByUUID(trimmed);
+          const f = await fmFindByUUID(trimmed.toUpperCase());
           if (!f) { showToast('製品が見つかりませんでした'); return; }
+          // デバッグ：取得した物件名と製品番号を確認
+          const dbg = `物件名:${f['物件名称']||'(空)'} / 製品:${f['製品番号']||'(空)'}`;
+          console.log('FM取得データ:', JSON.stringify(f));
           setField('f-site',        f['物件名称']      || '');
           setField('f-part-name',   f['製品番号']      || '');
           setField('f-part-type',   f['部位名称']      || '');
@@ -1651,7 +1654,7 @@
           setField('f-seizou-line', f['製造ライン名称'] || '');
           setField('f-mold-no',     f['型枠番号']      || '');
           setField('f-strength',    f['配合']          || '');
-          showToast('FileMakerから情報を取得しました');
+          showToast('取得：' + dbg);
         } catch (e) {
           console.error(e);
           showToast('取得エラー：' + e.message);
