@@ -956,6 +956,13 @@
           queryLayout('mst製品')
         ]);
         if (!d1002 && !mst) return null;
+        // デバッグ：mst製品のフィールド名を確認
+        if (mst) {
+          const keys = Object.keys(mst).filter(k => mst[k] !== '').slice(0, 6);
+          showToast('[DEBUG] mst有値: ' + (keys.join(', ') || 'なし'));
+        } else {
+          showToast('[DEBUG] mst製品: 取得失敗');
+        }
         // マージ：mst製品の物件名称・部位名称を優先、その他はD1002を使用
         return Object.assign({}, d1002 || {}, {
           '物件名称': mst?.['物件名称'] || d1002?.['物件名称'] || '',
