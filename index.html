@@ -203,6 +203,45 @@
     #qr-video { width: 100%; border-radius: 6px; background: #000; min-height: 180px; }
     #qr-canvas { display: none; }
     .qr-hint { font-size: 12px; color: #9ab; margin: 0 0 8px; }
+    .qr-fmt-hint {
+      font-size: 11px; color: #567; padding: 6px 8px;
+      background: rgba(255,255,255,0.03); border-radius: 4px; margin-top: 8px;
+      white-space: pre-wrap; line-height: 1.6;
+    }
+
+    /* QR読取確認オーバーレイ */
+    #qr-result-overlay {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.82); z-index: 500;
+      align-items: center; justify-content: center; padding: 16px;
+    }
+    #qr-result-overlay.open { display: flex; }
+    #qr-result-dialog {
+      background: #1a2a3a; border-radius: 12px;
+      width: min(92vw, 360px); overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.25);
+      box-shadow: 0 6px 30px rgba(0,0,0,0.6);
+    }
+    .qr-res-hdr {
+      background: #0a3a5c; padding: 13px 15px;
+      font-size: 16px; font-weight: bold; color: #fff;
+    }
+    .qr-res-body { padding: 14px; }
+    .qr-res-raw {
+      font-size: 11px; color: #678; padding: 6px 8px;
+      background: rgba(255,255,255,0.04); border-radius: 4px;
+      word-break: break-all; margin-bottom: 12px;
+      max-height: 50px; overflow-y: auto;
+    }
+    .qr-res-row {
+      display: flex; gap: 8px; padding: 7px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.08); align-items: center;
+    }
+    .qr-res-row:last-child { border-bottom: none; }
+    .qr-res-label { font-size: 12px; color: #9ab; width: 72px; flex-shrink: 0; }
+    .qr-res-val { font-size: 14px; color: #fff; flex: 1; word-break: break-all; }
+    .qr-res-val.empty { color: rgba(255,255,255,0.3); font-size: 13px; }
+    .qr-res-btns { display: flex; gap: 8px; margin-top: 14px; }
 
     /* 検索フォーム */
     #search-form { display: none; }
@@ -460,6 +499,44 @@
   </style>
 </head>
 <body>
+
+  <!-- ログイン画面 -->
+  <div id="login-overlay" style="
+    display:flex; position:fixed; inset:0; z-index:9999;
+    background:#0d1f2d; align-items:center; justify-content:center; padding:20px;
+  ">
+    <div style="
+      background:#1a2a3a; border-radius:14px; padding:32px 24px;
+      width:min(92vw,340px); border:1px solid rgba(255,255,255,0.15);
+      box-shadow:0 8px 32px rgba(0,0,0,0.5);
+    ">
+      <h2 style="color:#fff;font-size:18px;margin:0 0 6px;">ストックヤード管理</h2>
+      <p style="color:#8ab;font-size:13px;margin:0 0 24px;">FileMaker アカウントでログイン</p>
+      <div style="margin-bottom:14px;">
+        <label style="color:#9ab;font-size:12px;display:block;margin-bottom:5px;">ユーザー名</label>
+        <input id="login-user" type="text" autocomplete="username"
+          style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:7px;
+          border:1px solid rgba(255,255,255,0.2);background:#0d1f2d;color:#fff;font-size:15px;"
+          placeholder="ユーザー名">
+      </div>
+      <div style="margin-bottom:20px;">
+        <label style="color:#9ab;font-size:12px;display:block;margin-bottom:5px;">パスワード</label>
+        <input id="login-pass" type="password" autocomplete="current-password"
+          style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:7px;
+          border:1px solid rgba(255,255,255,0.2);background:#0d1f2d;color:#fff;font-size:15px;"
+          placeholder="パスワード">
+      </div>
+      <div id="login-error" style="
+        display:none;color:#f77;font-size:13px;margin-bottom:14px;
+        background:rgba(255,80,80,0.12);padding:9px 12px;border-radius:6px;
+      "></div>
+      <button id="login-btn" style="
+        width:100%;padding:13px;border-radius:8px;border:none;
+        background:#1e7fc2;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;
+      ">ログイン</button>
+    </div>
+  </div>
+
   <header>
     <h1>プレキャスト製品ストックヤード管理</h1>
     <button id="btn-csv-import">CSV取込</button>
@@ -498,6 +575,9 @@
         <p class="qr-hint">カメラでQRコードを読み取ってください</p>
         <video id="qr-video" playsinline autoplay muted></video>
         <canvas id="qr-canvas"></canvas>
+        <div class="qr-fmt-hint">FileMaker設定例（タブ区切り）：
+現場名 → 製品番号 → 部材種 → 製造日 → 製造ライン → 型枠番号 → Fc
+例: 大栄産業	B-001	梁		　	M-001	24</div>
       </div>
 
       <!-- 登録フォーム -->
@@ -726,6 +806,23 @@
     <div id="cell-popup-body"></div>
   </div>
 
+  <!-- QR読取確認ダイアログ -->
+  <div id="qr-result-overlay">
+    <div id="qr-result-dialog">
+      <div class="qr-res-hdr">QR読取結果</div>
+      <div class="qr-res-body">
+        <div class="qr-res-raw" id="qr-raw-text"></div>
+        <div id="qr-res-rows"></div>
+        <div class="qr-res-btns">
+          <button type="button" class="btn-secondary" id="btn-qr-rescan"
+            style="flex:1;margin-top:0;padding:11px 6px;font-size:14px;">再スキャン</button>
+          <button type="button" class="btn-primary" id="btn-qr-apply"
+            style="flex:2;margin-top:0;padding:11px 6px;font-size:14px;">この内容で入力</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ストック状況モーダル -->
   <div id="stock-status-overlay">
     <div id="stock-status-dialog">
@@ -740,6 +837,118 @@
   <script type="module">
     import DxfParser from 'https://esm.sh/dxf-parser';
     import jsQR from 'https://esm.sh/jsqr';
+
+    // ===== FileMaker Data API 設定 =====
+    const FM = {
+      server:   'https://fms.daieisng.com',
+      database: '基幹システム',
+      layout:   'mst製品',
+      get username() { return sessionStorage.getItem('fm_user') || ''; },
+      get password() { return sessionStorage.getItem('fm_pass') || ''; }
+    };
+
+    async function fmGetToken() {
+      const db  = encodeURIComponent(FM.database);
+      const url = `${FM.server}/fmi/data/v1/databases/${db}/sessions`;
+      const res = await fetch(url, {
+        method:  'POST',
+        headers: {
+          'Authorization': 'Basic ' + btoa(`${FM.username}:${FM.password}`),
+          'Content-Type':  'application/json'
+        },
+        body: '{}'
+      });
+      const j = await res.json();
+      if (j.messages[0].code !== '0') throw new Error('FileMaker認証失敗');
+      return j.response.token;
+    }
+
+    // ===== ログイン処理 =====
+    async function doLogin() {
+      const user = document.getElementById('login-user').value.trim();
+      const pass = document.getElementById('login-pass').value;
+      const errEl = document.getElementById('login-error');
+      const btn   = document.getElementById('login-btn');
+
+      if (!user || !pass) {
+        errEl.textContent = 'ユーザー名とパスワードを入力してください';
+        errEl.style.display = 'block';
+        return;
+      }
+
+      btn.textContent = '確認中...';
+      btn.disabled = true;
+      errEl.style.display = 'none';
+
+      try {
+        const db  = encodeURIComponent(FM.database);
+        const url = `${FM.server}/fmi/data/v1/databases/${db}/sessions`;
+        const res = await fetch(url, {
+          method:  'POST',
+          headers: {
+            'Authorization': 'Basic ' + btoa(`${user}:${pass}`),
+            'Content-Type':  'application/json'
+          },
+          body: '{}'
+        });
+        const j = await res.json();
+        if (j.messages[0].code !== '0') throw new Error('認証失敗');
+
+        // ログアウト（トークン破棄）
+        await fetch(`${FM.server}/fmi/data/v1/databases/${db}/sessions/${j.response.token}`,
+          { method: 'DELETE' }).catch(() => {});
+
+        // 認証情報をセッションに保存
+        sessionStorage.setItem('fm_user', user);
+        sessionStorage.setItem('fm_pass', pass);
+
+        document.getElementById('login-overlay').style.display = 'none';
+      } catch (e) {
+        errEl.textContent = 'ログインに失敗しました。ID・パスワードを確認してください。';
+        errEl.style.display = 'block';
+        btn.textContent = 'ログイン';
+        btn.disabled = false;
+      }
+    }
+
+    document.getElementById('login-btn').addEventListener('click', doLogin);
+    document.getElementById('login-pass').addEventListener('keydown', e => {
+      if (e.key === 'Enter') doLogin();
+    });
+
+    // 既にログイン済みならスキップ
+    if (sessionStorage.getItem('fm_user')) {
+      document.getElementById('login-overlay').style.display = 'none';
+    }
+
+    async function fmLogout(token) {
+      const db  = encodeURIComponent(FM.database);
+      await fetch(`${FM.server}/fmi/data/v1/databases/${db}/sessions/${token}`, {
+        method: 'DELETE'
+      }).catch(() => {});
+    }
+
+    async function fmFindByUUID(uuid) {
+      const token = await fmGetToken();
+      const db     = encodeURIComponent(FM.database);
+      const layout = encodeURIComponent(FM.layout);
+      const url = `${FM.server}/fmi/data/v1/databases/${db}/layouts/${layout}/_find`;
+      try {
+        const res = await fetch(url, {
+          method:  'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type':  'application/json'
+          },
+          body: JSON.stringify({ query: [{ UUID: uuid }] })
+        });
+        const j = await res.json();
+        if (j.messages[0].code !== '0') return null;
+        return j.response.data[0]?.fieldData ?? null;
+      } finally {
+        fmLogout(token);
+      }
+    }
 
     // ===== デバイス判定 =====
     const isPhone = window.matchMedia('(max-width: 480px)').matches;
@@ -789,6 +998,7 @@
     let markers = [];
     let nextId = 1;
     let searchVisibleIds = new Set();
+    const nearCursorIds = new Set();
     let multiPartNames = [];
     let currentPanelMode = null;
     let markingMode = false; // マーキング表示モード
@@ -1395,8 +1605,8 @@
             const code = jsQR(img.data, img.width, img.height, { inversionAttempts: 'dontInvert' });
             if (code) {
               stopQR();
-              fillFromQR(code.data);
               qrSection.classList.remove('visible');
+              fillFromQR(code.data);
               return;
             }
           }
@@ -1418,27 +1628,66 @@
       if (qrStream) { qrStream.getTracks().forEach(t => t.stop()); qrStream = null; }
     }
 
-    function fillFromQR(data) {
-      try {
-        const obj = JSON.parse(data);
-        setField('f-site',        obj.siteName   || '');
-        setField('f-part-name',   obj.partName   || '');
-        setField('f-part-type',   obj.partType   || '');
-        setField('f-mfg-date',    obj.mfgDate    || '');
-        setField('f-seizou-line', obj.seizouLine || '');
-        setField('f-mold-no',     obj.moldNo     || '');
-        setField('f-strength',    obj.strength   || '');
-      } catch {
-        const lines = data.split(/[\n,]/);
-        setField('f-site',        lines[0] || '');
-        setField('f-part-name',   lines[1] || '');
-        setField('f-part-type',   lines[2] || '');
-        setField('f-mfg-date',    lines[3] || '');
-        setField('f-seizou-line', lines[4] || '');
-        setField('f-mold-no',     lines[5] || '');
-        setField('f-strength',    lines[6] || '');
+    // UUID形式かどうか判定（FileMaker の UUID は大文字英数字とハイフン）
+    const UUID_RE = /^[0-9A-F]{8}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{4}-[0-9A-F]{12}$/i;
+
+    async function fillFromQR(data) {
+      const trimmed = data.trim();
+
+      if (UUID_RE.test(trimmed)) {
+        // ---- FileMaker 連携モード ----
+        showToast('FileMakerから情報を取得中...');
+        try {
+          const f = await fmFindByUUID(trimmed);
+          if (!f) { showToast('製品が見つかりませんでした'); return; }
+          setField('f-site',        f['物件名称']      || '');
+          setField('f-part-name',   f['製品番号']      || '');
+          setField('f-part-type',   f['部位名称']      || '');
+          setField('f-mfg-date',    '');
+          setField('f-seizou-line', f['製造ライン名称'] || '');
+          setField('f-mold-no',     f['型枠番号']      || '');
+          setField('f-strength',    f['配合']          || '');
+          showToast('FileMakerから情報を取得しました');
+        } catch (e) {
+          console.error(e);
+          showToast('取得エラー：' + e.message);
+          return;
+        }
+      } else {
+        // ---- テキスト直読みモード（JSON / タブ区切り / 改行区切り）----
+        try {
+          const obj = JSON.parse(trimmed);
+          setField('f-site',        obj.siteName   || '');
+          setField('f-part-name',   obj.partName   || '');
+          setField('f-part-type',   obj.partType   || '');
+          setField('f-mfg-date',    obj.mfgDate    || '');
+          setField('f-seizou-line', obj.seizouLine || '');
+          setField('f-mold-no',     obj.moldNo     || '');
+          setField('f-strength',    obj.strength   || '');
+        } catch {
+          const lines = trimmed.includes('\t')
+            ? trimmed.split('\t')
+            : trimmed.split(/[\n\r,]/);
+          const tr = v => (v || '').trim();
+          setField('f-site',        tr(lines[0]));
+          setField('f-part-name',   tr(lines[1]));
+          setField('f-part-type',   tr(lines[2]));
+          setField('f-mfg-date',    tr(lines[3]));
+          setField('f-seizou-line', tr(lines[4]));
+          setField('f-mold-no',     tr(lines[5]));
+          setField('f-strength',    tr(lines[6]));
+        }
+        showToast('QRコードを読み取りました');
       }
-      showToast('QRコードを読み取りました');
+
+      // 製造日プレビュー更新
+      const mfgVal = document.getElementById('f-mfg-date').value;
+      if (mfgVal) {
+        const preview = document.getElementById('f-mfg-date-preview');
+        const parsed  = parseDateInput(mfgVal);
+        preview.textContent = parsed ? `→ ${parsed}` : '日付の形式が正しくありません';
+        preview.style.color = parsed ? '#9fb' : '#f99';
+      }
     }
 
     function setField(id, val) { document.getElementById(id).value = val; }
@@ -1621,7 +1870,11 @@
     });
 
     // ===== 検索 =====
-    document.getElementById('btn-search').addEventListener('click', () => openPanel('search'));
+    document.getElementById('btn-search').addEventListener('click', () => {
+      clearLayerSelection();
+      pendingReg = false;
+      openPanel('search');
+    });
 
     document.getElementById('btn-search-exec').addEventListener('click', () => {
       const sSite      = document.getElementById('s-site').value;
@@ -1713,6 +1966,7 @@
     // 段数選択を解除する共通関数
     function clearLayerSelection() {
       selectedLayer = null;
+      nearCursorIds.clear();
       document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
     }
 
@@ -1999,10 +2253,11 @@
       markerRenderPositions.clear();
       const visibles = [];
       markers.forEach(m => {
-        const isPending = !m.registered;
-        const isHiding  = m.registered && m.pendingHide;
-        const isSearch  = m.registered && !m.pendingHide && searchVisibleIds.has(m.id);
-        if (!isPending && !isHiding && !isSearch) return;
+        const isPending    = !m.registered;
+        const isHiding     = m.registered && m.pendingHide;
+        const isSearch     = m.registered && !m.pendingHide && searchVisibleIds.has(m.id);
+        const isNearCursor = m.registered && !m.pendingHide && nearCursorIds.has(m.id);
+        if (!isPending && !isHiding && !isSearch && !isNearCursor) return;
         const p = toScreen(m.x, m.y);
         visibles.push({ id: m.id, sx: p.sx, sy: p.sy });
       });
@@ -2029,6 +2284,44 @@
             });
           });
         }
+      }
+    }
+
+    // カーソル周辺の登録済みマーカーを nearCursorIds に収集する
+    // 段積みの場合は最上段のみ残す
+    function updateNearCursorMarkers(sx, sy) {
+      nearCursorIds.clear();
+      if (!selectedLayer) return;
+
+      const NEAR_R  = 80; // 表示対象とする画面ピクセル半径
+      const STACK_R = 14; // 同一スタックとみなす距離（画面ピクセル）
+
+      const nearby = [];
+      markers.forEach(m => {
+        if (!m.registered || m.pendingHide) return;
+        const p = toScreen(m.x, m.y);
+        if (Math.hypot(p.sx - sx, p.sy - sy) <= NEAR_R) {
+          nearby.push({ m, sx: p.sx, sy: p.sy });
+        }
+      });
+
+      if (!nearby.length) return;
+
+      // 近い位置のマーカーをグループ化して最上段のみ残す
+      const used = new Uint8Array(nearby.length);
+      for (let i = 0; i < nearby.length; i++) {
+        if (used[i]) continue;
+        let top = nearby[i].m;
+        for (let j = i + 1; j < nearby.length; j++) {
+          if (used[j]) continue;
+          const dx = nearby[i].sx - nearby[j].sx;
+          const dy = nearby[i].sy - nearby[j].sy;
+          if (dx*dx + dy*dy < STACK_R*STACK_R) {
+            used[j] = 1;
+            if (nearby[j].m.layer > top.layer) top = nearby[j].m;
+          }
+        }
+        nearCursorIds.add(top.id);
       }
     }
 
@@ -2102,14 +2395,16 @@
       // マーカー描画（重なりオフセット計算）
       buildMarkerRenderPositions();
       markers.forEach(m => {
-        const isPending  = !m.registered;
-        const isHiding   = m.registered && m.pendingHide;
-        const isSearch   = m.registered && !m.pendingHide && searchVisibleIds.has(m.id);
-        if (!isPending && !isHiding && !isSearch) return;
+        const isPending    = !m.registered;
+        const isHiding     = m.registered && m.pendingHide;
+        const isSearch     = m.registered && !m.pendingHide && searchVisibleIds.has(m.id);
+        const isNearCursor = m.registered && !m.pendingHide && nearCursorIds.has(m.id) && !isSearch;
+        if (!isPending && !isHiding && !isSearch && !isNearCursor) return;
 
         const pos = markerRenderPositions.get(m.id) || toScreen(m.x, m.y);
-        const r = isSearch ? 9 : 7;
+        const r = (isSearch || isNearCursor) ? 9 : 7;
 
+        ctx.globalAlpha = isNearCursor ? 0.7 : 1.0;
         ctx.beginPath();
         ctx.arc(pos.sx, pos.sy, r, 0, Math.PI*2);
         ctx.fillStyle = LAYER_COLORS[m.layer];
@@ -2118,6 +2413,7 @@
         ctx.strokeStyle = isPending ? 'rgba(255,255,255,0.9)' : (isWhite ? 'rgba(0,0,0,0.8)' : 'rgba(0,0,0,0.5)');
         ctx.lineWidth   = isPending ? 2.5 : (isWhite ? 2 : 1.5);
         ctx.stroke();
+        ctx.globalAlpha = 1.0;
 
         if (isPending) {
           ctx.fillStyle='#fff'; ctx.font='bold 9px sans-serif';
@@ -2126,30 +2422,30 @@
           ctx.textAlign='left'; ctx.textBaseline='alphabetic';
         }
 
-        if (isSearch && m.info) {
+        if ((isSearch || isNearCursor) && m.info) {
           const label = `${m.info.siteName} ${m.info.partName}`;
           ctx.font = 'bold 12px sans-serif';
           const tw = ctx.measureText(label).width;
-          const angle = pos.angle; // グループ内のみ存在
+          const angle = pos.angle;
           let lx, ly;
           if (angle === undefined) {
-            // 単体：従来通り右へ
             lx = pos.sx + 13;
             ly = pos.sy - 4;
           } else {
-            // グループ：散らばった方向にラベルを配置
             const ax = pos.sx + 20 * Math.cos(angle);
             const ay = pos.sy + 20 * Math.sin(angle);
             const ca = Math.cos(angle);
-            if (ca < -0.3)       lx = ax - tw - 2; // 左向き
-            else if (ca > 0.3)   lx = ax + 2;      // 右向き
-            else                 lx = ax - tw / 2;  // 上下：中央寄せ
+            if (ca < -0.3)       lx = ax - tw - 2;
+            else if (ca > 0.3)   lx = ax + 2;
+            else                 lx = ax - tw / 2;
             ly = ay + 4;
           }
+          ctx.globalAlpha = isNearCursor ? 0.7 : 1.0;
           ctx.fillStyle = 'rgba(0,0,0,0.78)';
           ctx.fillRect(lx - 2, ly - 13, tw + 4, 15);
           ctx.fillStyle = '#fff';
           ctx.fillText(label, lx, ly);
+          ctx.globalAlpha = 1.0;
         }
       });
     }
@@ -2169,6 +2465,12 @@
         if(Math.abs(dx)>3||Math.abs(dy)>3) dragMoved=true;
         offsetX+=dx; offsetY+=dy; lastX=e.clientX; lastY=e.clientY; render();
       }
+      // 段数選択中：カーソル周辺の登録済みマーカーをプレビュー表示
+      if (selectedLayer && !isDragging && !isMidDrag) {
+        const r = canvas.getBoundingClientRect();
+        updateNearCursorMarkers(e.clientX - r.left, e.clientY - r.top);
+        render();
+      }
     });
     canvas.addEventListener('mouseup', e => {
       if (e.button===1) { isMidDrag=false; canvas.classList.remove('dragging'); return; }
@@ -2176,7 +2478,10 @@
       if (!dragMoved && dxf) placeMarker(e.clientX, e.clientY);
       isDragging=false; canvas.classList.remove('dragging');
     });
-    canvas.addEventListener('mouseleave', () => { isDragging=false; isMidDrag=false; canvas.classList.remove('dragging'); });
+    canvas.addEventListener('mouseleave', () => {
+      isDragging=false; isMidDrag=false; canvas.classList.remove('dragging');
+      if (nearCursorIds.size > 0) { nearCursorIds.clear(); render(); }
+    });
     canvas.addEventListener('wheel', e => {
       e.preventDefault();
       const r=canvas.getBoundingClientRect(), px=e.clientX-r.left, py=e.clientY-r.top;
@@ -2191,6 +2496,12 @@
       e.preventDefault();
       lastTouches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
       touchMoved = false;
+      // 段数選択中：指を置いた位置の周辺マーカーをプレビュー表示
+      if (selectedLayer && e.touches.length === 1) {
+        const r = canvas.getBoundingClientRect();
+        updateNearCursorMarkers(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+        render();
+      }
     }, {passive:false});
 
     canvas.addEventListener('touchmove', e => {
@@ -2213,6 +2524,7 @@
     }, {passive:false});
 
     canvas.addEventListener('touchend', e => {
+      nearCursorIds.clear();
       if (!touchMoved && e.changedTouches.length===1 && e.touches.length===0 && dxf) {
         const t=e.changedTouches[0];
         placeMarker(t.clientX, t.clientY);
