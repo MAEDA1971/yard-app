@@ -904,7 +904,11 @@
 
         document.getElementById('login-overlay').style.display = 'none';
       } catch (e) {
-        errEl.textContent = 'ログインに失敗しました。ID・パスワードを確認してください。';
+        // TypeError = ネットワークエラー（CORSブロックの可能性が高い）
+        const isCors = e instanceof TypeError;
+        errEl.innerHTML = isCors
+          ? '接続がブロックされています（CORS）。<br>FileMakerサーバー側の設定変更が必要です。<br><a href="https://github.com/MAEDA1971/yard-app#cors" target="_blank" style="color:#7cf;">詳細はこちら</a>'
+          : 'ID・パスワードが正しくありません。';
         errEl.style.display = 'block';
         btn.textContent = 'ログイン';
         btn.disabled = false;
