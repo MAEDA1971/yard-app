@@ -1770,6 +1770,17 @@
       preview.style.color = parsed ? '#9fb' : '#f99';
     });
 
+    // フォーカスが外れたとき数字入力を「YYYY年M月D日」に自動変換
+    document.getElementById('f-mfg-date').addEventListener('blur', e => {
+      const val = e.target.value.trim();
+      if (!val || val.includes('年')) return;
+      const parsed = parseDateInput(val);
+      if (parsed) {
+        e.target.value = parsed;
+        document.getElementById('f-mfg-date-preview').textContent = '';
+      }
+    });
+
     function clearRegForm() {
       ['f-site','f-part-name','f-part-type','f-mfg-date','f-seizou-line','f-mold-no','f-strength'].forEach(id => setField(id, ''));
       document.getElementById('f-mfg-date-preview').textContent = '';
