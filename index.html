@@ -935,57 +935,17 @@
     async function fmFindByUUID(uuid) {
       const token = await fmGetToken();
       const db    = encodeURIComponent(FM.database);
-      const body  = JSON.stringify({ query: [{ UUID: uuid }] });
-
-      async function queryLayout(layoutName) {
-        try {
-          const res = await fetch(
-            `${FM.server}/fmi/data/v1/databases/${db}/layouts/${encodeURIComponent(layoutName)}/_find`,
-            { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body }
-          );
-          const j = await res.json();
-          if (j.messages[0].code !== '0') return null;
-          // fieldData と portalData の両方を返す
-          const rec = j.response.data[0];
-          if (!rec) return null;
-          // 関連フィールドをフラット化して fieldData にマージ
-          const merged = Object.assign({}, rec.fieldData);
-          if (rec.portalData) {
-            Object.entries(rec.portalData).forEach(([portal, rows]) => {
-              if (rows && rows[0]) Object.assign(merged, rows[0]);
-            });
-          }
-          return merged;
-        } catch { return null; }
-      }
-
+      const layout = encodeURIComponent(FM.layout);
+      const url = `${FM.server}/fmi/data/v1/databases/${db}/layouts/${layout}/_find`;
       try {
-        // D1002（打設完了予定日・製品番号等）と mst製品（物件名称・部位名称等）を並列取得
-        const [d1002, mst] = await Promise.all([
-          queryLayout('D1002_製品情報取得_mst製品'),
-          queryLayout('mst製品')
-        ]);
-        if (!d1002 && !mst) return null;
-        // デバッグ：mst製品の全フィールド名（値あり）を表示
-        if (mst) {
-          const allKeys = Object.keys(mst);
-          const withVal = allKeys.filter(k => mst[k] !== '').slice(0, 8);
-          showToast('mst全' + allKeys.length + '件 値あり:' + (withVal.join('|') || 'なし'));
-        } else {
-          showToast('[DEBUG] mst製品: 取得失敗');
-        }
-        // マージ：mst製品の物件名称・部位名称を優先、その他はD1002を使用
-        // 関連フィールドのプレフィックス違いにも対応
-        const findField = (obj, name) => {
-          if (!obj) return '';
-          if (obj[name]) return obj[name];
-          const key = Object.keys(obj).find(k => k.endsWith('::' + name) || k === name);
-          return key ? obj[key] : '';
-        };
-        return Object.assign({}, d1002 || {}, {
-          '物件名称': findField(mst, '物件名称') || findField(d1002, '物件名称'),
-          '部位名称': findField(mst, '部位名称') || findField(d1002, '部位名称'),
+        const res = await fetch(url, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ query: [{ UUID: uuid }] })
         });
+        const j = await res.json();
+        if (j.messages[0].code !== '0') return null;
+        return j.response.data[0]?.fieldData ?? null;
       } finally {
         fmLogout(token);
       }
@@ -1691,9 +1651,9 @@
         try {
           const f = await fmFindByUUID(trimmed.toUpperCase());
           if (!f) { showToast('製品が見つかりませんでした'); return; }
-          setField('f-site',        f['物件名称']      || '');
+          setField('f-site',        f['物件UUID']      || '');
           setField('f-part-name',   f['製品番号']      || '');
-          setField('f-part-type',   f['部位名称']      || '');
+          setField('f-part-type',   f['部位コード']    || '');
           setField('f-mfg-date',    fmDateToLocal(f['打設完了日'] || f['打設完了予定日'] || ''));
           setField('f-seizou-line', f['製造ライン名称'] || '');
           setField('f-mold-no',     f['型枠番号']      || '');
