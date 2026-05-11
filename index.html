@@ -934,21 +934,33 @@
 
     async function fmFindByUUID(uuid) {
       const token = await fmGetToken();
-      const db     = encodeURIComponent(FM.database);
-      const layout = encodeURIComponent(FM.layout);
-      const url = `${FM.server}/fmi/data/v1/databases/${db}/layouts/${layout}/_find`;
+      const db    = encodeURIComponent(FM.database);
+      const body  = JSON.stringify({ query: [{ UUID: uuid }] });
+
+      async function queryLayout(layoutName) {
+        try {
+          const res = await fetch(
+            `${FM.server}/fmi/data/v1/databases/${db}/layouts/${encodeURIComponent(layoutName)}/_find`,
+            { method: 'POST', headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }, body }
+          );
+          const j = await res.json();
+          if (j.messages[0].code !== '0') return null;
+          return j.response.data[0]?.fieldData ?? null;
+        } catch { return null; }
+      }
+
       try {
-        const res = await fetch(url, {
-          method:  'POST',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-            'Content-Type':  'application/json'
-          },
-          body: JSON.stringify({ query: [{ UUID: uuid }] })
+        // D1002（打設完了予定日・製品番号等）と mst製品（物件名称・部位名称等）を並列取得
+        const [d1002, mst] = await Promise.all([
+          queryLayout('D1002_製品情報取得_mst製品'),
+          queryLayout('mst製品')
+        ]);
+        if (!d1002 && !mst) return null;
+        // マージ：mst製品の物件名称・部位名称を優先、その他はD1002を使用
+        return Object.assign({}, d1002 || {}, {
+          '物件名称': mst?.['物件名称'] || d1002?.['物件名称'] || '',
+          '部位名称': mst?.['部位名称'] || d1002?.['部位名称'] || '',
         });
-        const j = await res.json();
-        if (j.messages[0].code !== '0') return null;
-        return j.response.data[0]?.fieldData ?? null;
       } finally {
         fmLogout(token);
       }
@@ -1656,7 +1668,7 @@
           if (!f) { showToast('製品が見つかりませんでした'); return; }
           setField('f-site',        f['物件名称']      || '');
           setField('f-part-name',   f['製品番号']      || '');
-          setField('f-part-type',   '');
+          setField('f-part-type',   f['部位名称']      || '');
           setField('f-mfg-date',    fmDateToLocal(f['打設完了日'] || f['打設完了予定日'] || ''));
           setField('f-seizou-line', f['製造ライン名称'] || '');
           setField('f-mold-no',     f['型枠番号']      || '');
