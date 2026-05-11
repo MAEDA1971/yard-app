@@ -945,7 +945,17 @@
           );
           const j = await res.json();
           if (j.messages[0].code !== '0') return null;
-          return j.response.data[0]?.fieldData ?? null;
+          // fieldData と portalData の両方を返す
+          const rec = j.response.data[0];
+          if (!rec) return null;
+          // 関連フィールドをフラット化して fieldData にマージ
+          const merged = Object.assign({}, rec.fieldData);
+          if (rec.portalData) {
+            Object.entries(rec.portalData).forEach(([portal, rows]) => {
+              if (rows && rows[0]) Object.assign(merged, rows[0]);
+            });
+          }
+          return merged;
         } catch { return null; }
       }
 
@@ -956,17 +966,25 @@
           queryLayout('mst製品')
         ]);
         if (!d1002 && !mst) return null;
-        // デバッグ：mst製品のフィールド名を確認
+        // デバッグ：mst製品の全フィールド名（値あり）を表示
         if (mst) {
-          const keys = Object.keys(mst).filter(k => mst[k] !== '').slice(0, 6);
-          showToast('[DEBUG] mst有値: ' + (keys.join(', ') || 'なし'));
+          const allKeys = Object.keys(mst);
+          const withVal = allKeys.filter(k => mst[k] !== '').slice(0, 8);
+          showToast('mst全' + allKeys.length + '件 値あり:' + (withVal.join('|') || 'なし'));
         } else {
           showToast('[DEBUG] mst製品: 取得失敗');
         }
         // マージ：mst製品の物件名称・部位名称を優先、その他はD1002を使用
+        // 関連フィールドのプレフィックス違いにも対応
+        const findField = (obj, name) => {
+          if (!obj) return '';
+          if (obj[name]) return obj[name];
+          const key = Object.keys(obj).find(k => k.endsWith('::' + name) || k === name);
+          return key ? obj[key] : '';
+        };
         return Object.assign({}, d1002 || {}, {
-          '物件名称': mst?.['物件名称'] || d1002?.['物件名称'] || '',
-          '部位名称': mst?.['部位名称'] || d1002?.['部位名称'] || '',
+          '物件名称': findField(mst, '物件名称') || findField(d1002, '物件名称'),
+          '部位名称': findField(mst, '部位名称') || findField(d1002, '部位名称'),
         });
       } finally {
         fmLogout(token);
