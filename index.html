@@ -1651,9 +1651,9 @@
         try {
           const f = await fmFindByUUID(trimmed.toUpperCase());
           if (!f) { showToast('製品が見つかりませんでした'); return; }
-          setField('f-site',        f['物件UUID']      || '');
+          setField('f-site',        f['物件名称']      || '');
           setField('f-part-name',   f['製品番号']      || '');
-          setField('f-part-type',   f['部位コード']    || '');
+          setField('f-part-type',   f['部位名称']      || '');
           setField('f-mfg-date',    fmDateToLocal(f['打設完了日'] || f['打設完了予定日'] || ''));
           setField('f-seizou-line', f['製造ライン名称'] || '');
           setField('f-mold-no',     f['型枠番号']      || '');
