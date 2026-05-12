@@ -619,10 +619,6 @@
           <label>型枠番号</label>
           <input type="text" id="f-mold-no" placeholder="例：M-001">
         </div>
-        <div class="form-row">
-          <label>Fc</label>
-          <input type="text" id="f-strength" placeholder="例：24">
-        </div>
         <datalist id="dl-seizou-line"></datalist>
         <div class="error-msg" id="reg-error">部件名と製品番号は必須です</div>
         <!-- マス容量設定（番地のあるマスに配置した場合のみ表示） -->
@@ -679,10 +675,6 @@
         <div class="info-row">
           <span class="info-label">型枠番号</span>
           <span class="info-value" id="i-mold-no"></span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">Fc</span>
-          <span class="info-value" id="i-strength"></span>
         </div>
       </div>
 
@@ -1657,7 +1649,6 @@
           setField('f-mfg-date',    fmDateToLocal(f['打設完了日'] || f['打設完了予定日'] || ''));
           setField('f-seizou-line', f['製造ライン名称'] || '');
           setField('f-mold-no',     f['型枠番号']      || '');
-          setField('f-strength',    f['配合']          || '');
           showToast(`取得：製品番号 ${f['製品番号']||'(空)'}`);
         } catch (e) {
           console.error(e);
@@ -1674,7 +1665,6 @@
           setField('f-mfg-date',    obj.mfgDate    || '');
           setField('f-seizou-line', obj.seizouLine || '');
           setField('f-mold-no',     obj.moldNo     || '');
-          setField('f-strength',    obj.strength   || '');
         } catch {
           const lines = trimmed.includes('\t')
             ? trimmed.split('\t')
@@ -1686,7 +1676,6 @@
           setField('f-mfg-date',    tr(lines[3]));
           setField('f-seizou-line', tr(lines[4]));
           setField('f-mold-no',     tr(lines[5]));
-          setField('f-strength',    tr(lines[6]));
         }
         showToast('QRコードを読み取りました');
       }
@@ -1767,7 +1756,7 @@
     });
 
     function clearRegForm() {
-      ['f-site','f-part-name','f-part-type','f-mfg-date','f-seizou-line','f-mold-no','f-strength'].forEach(id => setField(id, ''));
+      ['f-site','f-part-name','f-part-type','f-mfg-date','f-seizou-line','f-mold-no'].forEach(id => setField(id, ''));
       document.getElementById('f-mfg-date-preview').textContent = '';
       document.getElementById('cap-part-type').value = '';
       document.getElementById('cap-quantity').value = '';
@@ -1822,7 +1811,6 @@
         mfgDate:    parseDateInput(document.getElementById('f-mfg-date').value) || document.getElementById('f-mfg-date').value,
         seizouLine: document.getElementById('f-seizou-line').value.trim(),
         moldNo:     document.getElementById('f-mold-no').value.trim(),
-        strength:   document.getElementById('f-strength').value.trim(),
       };
       target.registered  = true;
       target.pendingHide = true;
@@ -2611,7 +2599,7 @@
 
       if (!marker.info) {
         unregMsg.style.display = 'block';
-        ['i-site','i-part-name','i-part-type','i-mfg-date','i-seizou-line','i-mold-no','i-strength']
+        ['i-site','i-part-name','i-part-type','i-mfg-date','i-seizou-line','i-mold-no']
           .forEach(id => setInfoField(id, ''));
       } else {
         unregMsg.style.display = 'none';
@@ -2622,7 +2610,6 @@
         setInfoField('i-mfg-date',    inf.mfgDate);
         setInfoField('i-seizou-line', inf.seizouLine);
         setInfoField('i-mold-no',     inf.moldNo);
-        setInfoField('i-strength',    inf.strength);
       }
     }
 
