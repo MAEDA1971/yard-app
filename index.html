@@ -961,6 +961,7 @@
     const isPhone = window.matchMedia('(max-width: 480px)').matches;
     const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     let touchCursorX = null, touchCursorY = null;
+    let touchCursorWorldX = null, touchCursorWorldY = null;
     const placementBadge = document.getElementById('placement-mode-badge');
 
     // ===== iPhone パネル高さ初期設定 =====
@@ -1999,6 +2000,7 @@
       selectedLayer = null;
       nearCursorIds.clear();
       touchCursorX = null; touchCursorY = null;
+      touchCursorWorldX = null; touchCursorWorldY = null;
       placementBadge.style.display = 'none';
       document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
       render();
@@ -2555,6 +2557,8 @@
         const r = canvas.getBoundingClientRect();
         touchCursorX = e.touches[0].clientX - r.left - 30;
         touchCursorY = e.touches[0].clientY - r.top  - 40;
+        touchCursorWorldX = (touchCursorX - offsetX) / scale;
+        touchCursorWorldY = -(touchCursorY - offsetY) / scale;
         updateNearCursorMarkers(touchCursorX, touchCursorY);
         render();
       }
@@ -2570,6 +2574,8 @@
         const r = canvas.getBoundingClientRect();
         touchCursorX = cur[0].x - r.left - 30;
         touchCursorY = cur[0].y - r.top  - 40;
+        touchCursorWorldX = (touchCursorX - offsetX) / scale;
+        touchCursorWorldY = -(touchCursorY - offsetY) / scale;
         updateNearCursorMarkers(touchCursorX, touchCursorY);
         render();
       } else if (!selectedLayer && cur.length === 1 && lastTouches?.length === 1) {
@@ -2586,7 +2592,14 @@
         const z=d1>0?d2/d1:1;
         const r=canvas.getBoundingClientRect();
         const px=(cur[0].x+cur[1].x)/2-r.left, py=(cur[0].y+cur[1].y)/2-r.top;
-        offsetX=px-(px-offsetX)*z; offsetY=py-(py-offsetY)*z; scale*=z; render();
+        offsetX=px-(px-offsetX)*z; offsetY=py-(py-offsetY)*z; scale*=z;
+        // 配置モード中は＋をワールド座標で追従（パン後も同じ場所を示す）
+        if (selectedLayer && touchCursorWorldX !== null) {
+          const s = toScreen(touchCursorWorldX, touchCursorWorldY);
+          touchCursorX = s.sx;
+          touchCursorY = s.sy;
+        }
+        render();
       }
       lastTouches=cur;
     }, {passive:false});
