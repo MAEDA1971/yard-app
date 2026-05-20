@@ -2547,20 +2547,30 @@
 
     // ===== タッチ操作 =====
     let lastTouches=null, touchMoved=false;
+    let lastTwoTouches=null; // 2本指専用追跡（lastTouchesに依存しない）
 
     canvas.addEventListener('touchstart', e => {
       e.preventDefault();
       lastTouches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
       touchMoved = false;
-      if (selectedLayer && e.touches.length === 1) {
-        // 配置モード：1本指でカーソル表示（指で隠れないよう左斜め上にオフセット）
-        const r = canvas.getBoundingClientRect();
-        touchCursorX = e.touches[0].clientX - r.left - 30;
-        touchCursorY = e.touches[0].clientY - r.top  - 40;
-        touchCursorWorldX = (touchCursorX - offsetX) / scale;
-        touchCursorWorldY = -(touchCursorY - offsetY) / scale;
-        updateNearCursorMarkers(touchCursorX, touchCursorY);
-        render();
+      if (e.touches.length >= 2) {
+        // 2本指開始：専用変数を初期化
+        lastTwoTouches = [
+          {x: e.touches[0].clientX, y: e.touches[0].clientY},
+          {x: e.touches[1].clientX, y: e.touches[1].clientY}
+        ];
+      } else {
+        lastTwoTouches = null;
+        if (selectedLayer && e.touches.length === 1) {
+          // 配置モード：1本指でカーソル表示（指で隠れないよう左斜め上にオフセット）
+          const r = canvas.getBoundingClientRect();
+          touchCursorX = e.touches[0].clientX - r.left - 30;
+          touchCursorY = e.touches[0].clientY - r.top  - 40;
+          touchCursorWorldX = (touchCursorX - offsetX) / scale;
+          touchCursorWorldY = -(touchCursorY - offsetY) / scale;
+          updateNearCursorMarkers(touchCursorX, touchCursorY);
+          render();
+        }
       }
     }, {passive:false});
 
@@ -2568,9 +2578,31 @@
       e.preventDefault();
       const cur = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
 
-      if (selectedLayer && cur.length === 1) {
+      if (cur.length >= 2) {
+        // 2本指：パン＋ズーム（閲覧・配置モード共通）
+        touchMoved = true;
+        const prev = lastTwoTouches || [{x:cur[0].x,y:cur[0].y},{x:cur[1].x,y:cur[1].y}];
+        const d1 = Math.hypot(prev[0].x-prev[1].x, prev[0].y-prev[1].y);
+        const d2 = Math.hypot(cur[0].x-cur[1].x,   cur[0].y-cur[1].y);
+        const z  = d1 > 0 ? d2/d1 : 1;
+        const r  = canvas.getBoundingClientRect();
+        const px  = (cur[0].x+cur[1].x)/2 - r.left,  py  = (cur[0].y+cur[1].y)/2 - r.top;
+        const pmx = (prev[0].x+prev[1].x)/2 - r.left, pmy = (prev[0].y+prev[1].y)/2 - r.top;
+        offsetX = px - (pmx - offsetX) * z;
+        offsetY = py - (pmy - offsetY) * z;
+        scale  *= z;
+        // 配置モード中は＋をワールド座標で追従（パン後も同じ場所を示す）
+        if (selectedLayer && touchCursorWorldX !== null) {
+          const s = toScreen(touchCursorWorldX, touchCursorWorldY);
+          touchCursorX = s.sx;
+          touchCursorY = s.sy;
+        }
+        lastTwoTouches = [{x:cur[0].x,y:cur[0].y},{x:cur[1].x,y:cur[1].y}];
+        render();
+      } else if (selectedLayer && cur.length === 1) {
         // 配置モード＋1本指：カーソル移動（マップ固定）
         touchMoved = true;
+        lastTwoTouches = null;
         const r = canvas.getBoundingClientRect();
         touchCursorX = cur[0].x - r.left - 30;
         touchCursorY = cur[0].y - r.top  - 40;
@@ -2582,24 +2614,8 @@
         // 閲覧モード＋1本指：マップパン
         const dx=cur[0].x-lastTouches[0].x, dy=cur[0].y-lastTouches[0].y;
         if (Math.abs(dx)>4||Math.abs(dy)>4) touchMoved=true;
+        lastTwoTouches = null;
         offsetX+=dx; offsetY+=dy; render();
-      }
-      if (cur.length === 2 && lastTouches?.length === 2) {
-        // 2本指：パン＋ズーム（閲覧・配置モード共通）
-        touchMoved = true;
-        const d1=Math.hypot(lastTouches[0].x-lastTouches[1].x,lastTouches[0].y-lastTouches[1].y);
-        const d2=Math.hypot(cur[0].x-cur[1].x,cur[0].y-cur[1].y);
-        const z=d1>0?d2/d1:1;
-        const r=canvas.getBoundingClientRect();
-        const px=(cur[0].x+cur[1].x)/2-r.left, py=(cur[0].y+cur[1].y)/2-r.top;
-        offsetX=px-(px-offsetX)*z; offsetY=py-(py-offsetY)*z; scale*=z;
-        // 配置モード中は＋をワールド座標で追従（パン後も同じ場所を示す）
-        if (selectedLayer && touchCursorWorldX !== null) {
-          const s = toScreen(touchCursorWorldX, touchCursorWorldY);
-          touchCursorX = s.sx;
-          touchCursorY = s.sy;
-        }
-        render();
       }
       lastTouches=cur;
     }, {passive:false});
