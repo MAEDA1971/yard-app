@@ -2638,14 +2638,21 @@
       const wasInPlacement = selectedLayer !== null; // 開始時の状態を保存
       nearCursorIds.clear();
       if (e.touches.length === 0) {
-        if (wasInPlacement && touchCursorX !== null && !touchMoved && dxf) {
-          // 配置モード：タップでフォームを開く（マーカー作成は登録ボタンで行う）
-          pendingReg = false;
-          openPanel('input');
-        } else if (!wasInPlacement && !touchMoved && e.changedTouches.length===1 && dxf) {
-          // 閲覧モード：タップで配置（段数未選択なら無視）
-          const t=e.changedTouches[0];
-          placeMarker(t.clientX, t.clientY);
+        const t = e.changedTouches[0];
+        if (!touchMoved && t && dxf) {
+          const r = canvas.getBoundingClientRect();
+          const hit = findMarkerAt(t.clientX - r.left, t.clientY - r.top);
+          if (hit && hit.registered) {
+            // 登録済みマーカーのタップ：配置モード中でも情報パネルを優先表示
+            openInfo(hit);
+          } else if (wasInPlacement && touchCursorX !== null) {
+            // 配置モード：タップでフォームを開く
+            pendingReg = false;
+            openPanel('input');
+          } else if (!wasInPlacement) {
+            // 閲覧モード：タップで配置
+            placeMarker(t.clientX, t.clientY);
+          }
         }
         // 配置モードで開始した場合は＋を消さない（clearLayerSelection()のみがクリア）
         if (!wasInPlacement) { touchCursorX = null; touchCursorY = null; }
