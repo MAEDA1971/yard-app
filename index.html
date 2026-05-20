@@ -959,7 +959,7 @@
 
     // ===== デバイス判定 =====
     const isPhone = window.matchMedia('(max-width: 480px)').matches;
-    const isTouchDevice = navigator.maxTouchPoints > 0;
+    const isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
     let touchCursorX = null, touchCursorY = null;
     const placementBadge = document.getElementById('placement-mode-badge');
 
@@ -2033,7 +2033,7 @@
           btn.classList.add('active');
           pendingReg = true;
           openPanel('input');
-          if (isTouchDevice) placementBadge.style.display = 'block';
+          if (isTouchDevice || ('ontouchstart' in window)) placementBadge.style.display = 'block';
         }
       });
     }
@@ -2483,8 +2483,8 @@
         }
       });
 
-      // タッチ端末：配置モード中に＋カーソルを描画
-      if (isTouchDevice && selectedLayer && touchCursorX !== null) {
+      // 配置モード中にタッチ操作があれば＋カーソルを描画
+      if (selectedLayer && touchCursorX !== null) {
         const x = touchCursorX, y = touchCursorY, sz = 22;
         ctx.save();
         ctx.lineWidth = 3;
