@@ -23,6 +23,18 @@
     canvas { display: block; touch-action: none; cursor: crosshair; }
     canvas.dragging { cursor: grabbing; }
 
+    /* 配置モード中バッジ（タッチ端末のみ表示） */
+    #placement-mode-badge {
+      display: none;
+      position: fixed; top: 56px; left: 8px;
+      background: #e53935; color: #fff;
+      font-size: 15px; font-weight: bold;
+      padding: 5px 16px; border-radius: 20px;
+      z-index: 300; pointer-events: none;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.45);
+      letter-spacing: 1px;
+    }
+
     /* ツールバー */
     #marker-toolbar {
       position: absolute; top: 10px; left: 50%; transform: translateX(-50%);
@@ -545,6 +557,8 @@
   </header>
   <input type="file" id="csv-file-input" accept=".csv" style="display:none">
 
+  <div id="placement-mode-badge">配置モード中</div>
+
   <div id="canvas-container">
     <canvas id="canvas"></canvas>
 
@@ -945,6 +959,9 @@
 
     // ===== デバイス判定 =====
     const isPhone = window.matchMedia('(max-width: 480px)').matches;
+    const isTouchDevice = navigator.maxTouchPoints > 0;
+    let touchCursorX = null, touchCursorY = null;
+    const placementBadge = document.getElementById('placement-mode-badge');
 
     // ===== iPhone パネル高さ初期設定 =====
     // キーボード表示でパネルを縮めない：常にヘッダー直下から全画面を確保
@@ -1981,6 +1998,8 @@
     function clearLayerSelection() {
       selectedLayer = null;
       nearCursorIds.clear();
+      touchCursorX = null; touchCursorY = null;
+      placementBadge.style.display = 'none';
       document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
     }
 
@@ -2014,6 +2033,7 @@
           btn.classList.add('active');
           pendingReg = true;
           openPanel('input');
+          if (isTouchDevice) placementBadge.style.display = 'block';
         }
       });
     }
@@ -2462,6 +2482,25 @@
           ctx.globalAlpha = 1.0;
         }
       });
+
+      // タッチ端末：配置モード中に＋カーソルを描画
+      if (isTouchDevice && selectedLayer && touchCursorX !== null) {
+        const x = touchCursorX, y = touchCursorY, sz = 22;
+        ctx.save();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+        ctx.beginPath();
+        ctx.moveTo(x - sz, y); ctx.lineTo(x + sz, y);
+        ctx.moveTo(x, y - sz); ctx.lineTo(x, y + sz);
+        ctx.stroke();
+        ctx.lineWidth = 1.5;
+        ctx.strokeStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.moveTo(x - sz, y); ctx.lineTo(x + sz, y);
+        ctx.moveTo(x, y - sz); ctx.lineTo(x, y + sz);
+        ctx.stroke();
+        ctx.restore();
+      }
     }
 
     // ===== マウス操作 =====
@@ -2510,10 +2549,12 @@
       e.preventDefault();
       lastTouches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
       touchMoved = false;
-      // 段数選択中：指を置いた位置の周辺マーカーをプレビュー表示
       if (selectedLayer && e.touches.length === 1) {
+        // 配置モード：1本指でカーソル表示
         const r = canvas.getBoundingClientRect();
-        updateNearCursorMarkers(e.touches[0].clientX - r.left, e.touches[0].clientY - r.top);
+        touchCursorX = e.touches[0].clientX - r.left;
+        touchCursorY = e.touches[0].clientY - r.top;
+        updateNearCursorMarkers(touchCursorX, touchCursorY);
         render();
       }
     }, {passive:false});
@@ -2521,12 +2562,24 @@
     canvas.addEventListener('touchmove', e => {
       e.preventDefault();
       const cur = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
-      if (cur.length===1 && lastTouches?.length===1) {
+
+      if (selectedLayer && cur.length === 1) {
+        // 配置モード＋1本指：カーソル移動（マップ固定）
+        touchMoved = true;
+        const r = canvas.getBoundingClientRect();
+        touchCursorX = cur[0].x - r.left;
+        touchCursorY = cur[0].y - r.top;
+        updateNearCursorMarkers(touchCursorX, touchCursorY);
+        render();
+      } else if (!selectedLayer && cur.length === 1 && lastTouches?.length === 1) {
+        // 閲覧モード＋1本指：マップパン
         const dx=cur[0].x-lastTouches[0].x, dy=cur[0].y-lastTouches[0].y;
         if (Math.abs(dx)>4||Math.abs(dy)>4) touchMoved=true;
         offsetX+=dx; offsetY+=dy; render();
-      } else if (cur.length===2 && lastTouches?.length===2) {
-        touchMoved=true;
+      }
+      if (cur.length === 2 && lastTouches?.length === 2) {
+        // 2本指：パン＋ズーム（閲覧・配置モード共通）
+        touchMoved = true;
         const d1=Math.hypot(lastTouches[0].x-lastTouches[1].x,lastTouches[0].y-lastTouches[1].y);
         const d2=Math.hypot(cur[0].x-cur[1].x,cur[0].y-cur[1].y);
         const z=d1>0?d2/d1:1;
@@ -2539,11 +2592,19 @@
 
     canvas.addEventListener('touchend', e => {
       nearCursorIds.clear();
-      if (!touchMoved && e.changedTouches.length===1 && e.touches.length===0 && dxf) {
-        const t=e.changedTouches[0];
-        placeMarker(t.clientX, t.clientY);
+      if (e.touches.length === 0) {
+        if (selectedLayer && touchCursorX !== null && !touchMoved && dxf) {
+          // 配置モード：カーソル位置に配置
+          placeMarker(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+        } else if (!selectedLayer && !touchMoved && e.changedTouches.length===1 && dxf) {
+          // 閲覧モード：タップで配置（段数未選択なら無視）
+          const t=e.changedTouches[0];
+          placeMarker(t.clientX, t.clientY);
+        }
+        touchCursorX = null; touchCursorY = null;
       }
       lastTouches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
+      render();
     });
 
     function findMarkerAt(sx, sy) {
