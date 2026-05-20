@@ -2550,10 +2550,10 @@
       lastTouches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
       touchMoved = false;
       if (selectedLayer && e.touches.length === 1) {
-        // 配置モード：1本指でカーソル表示
+        // 配置モード：1本指でカーソル表示（指で隠れないよう左斜め上にオフセット）
         const r = canvas.getBoundingClientRect();
-        touchCursorX = e.touches[0].clientX - r.left;
-        touchCursorY = e.touches[0].clientY - r.top;
+        touchCursorX = e.touches[0].clientX - r.left - 30;
+        touchCursorY = e.touches[0].clientY - r.top  - 40;
         updateNearCursorMarkers(touchCursorX, touchCursorY);
         render();
       }
@@ -2567,8 +2567,8 @@
         // 配置モード＋1本指：カーソル移動（マップ固定）
         touchMoved = true;
         const r = canvas.getBoundingClientRect();
-        touchCursorX = cur[0].x - r.left;
-        touchCursorY = cur[0].y - r.top;
+        touchCursorX = cur[0].x - r.left - 30;
+        touchCursorY = cur[0].y - r.top  - 40;
         updateNearCursorMarkers(touchCursorX, touchCursorY);
         render();
       } else if (!selectedLayer && cur.length === 1 && lastTouches?.length === 1) {
@@ -2594,8 +2594,9 @@
       nearCursorIds.clear();
       if (e.touches.length === 0) {
         if (selectedLayer && touchCursorX !== null && !touchMoved && dxf) {
-          // 配置モード：カーソル位置に配置
-          placeMarker(e.changedTouches[0].clientX, e.changedTouches[0].clientY);
+          // 配置モード：オフセット済みカーソル位置に配置
+          const r = canvas.getBoundingClientRect();
+          placeMarker(touchCursorX + r.left, touchCursorY + r.top);
         } else if (!selectedLayer && !touchMoved && e.changedTouches.length===1 && dxf) {
           // 閲覧モード：タップで配置（段数未選択なら無視）
           const t=e.changedTouches[0];
