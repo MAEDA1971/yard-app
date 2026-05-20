@@ -1203,8 +1203,15 @@
         for (let i = markers.length - 1; i >= 0; i--) {
           if (!markers[i].registered) { lastPending = markers[i]; break; }
         }
-        if (lastPending && lastPending.address) {
-          addrVal.textContent = lastPending.address;
+        // 未登録マーカーがない場合、＋カーソル位置の番地を使う（タッチデバイス）
+        let pendingAddress = lastPending?.address;
+        if (!pendingAddress && touchCursorX !== null && selectedLayer) {
+          const wx = (touchCursorX - offsetX) / scale;
+          const wy = -(touchCursorY - offsetY) / scale;
+          pendingAddress = getAddressAt(wx, wy) || null;
+        }
+        if (pendingAddress) {
+          addrVal.textContent = pendingAddress;
           addrBox.classList.add('visible');
         } else {
           addrBox.classList.remove('visible');
@@ -1212,7 +1219,7 @@
 
         // 番地マス内の場合のみ容量入力セクションを表示
         const capSection = document.getElementById('cell-capacity-section');
-        if (lastPending && lastPending.address) {
+        if (pendingAddress) {
           // 部材種ドロップダウンを動的生成（DEFAULT_PART_TYPES ＋ 登録済み種別）
           const typeSet = new Set(DEFAULT_PART_TYPES);
           Object.values(csvMaster).flat().forEach(r => { if (r.partType) typeSet.add(r.partType); });
@@ -1241,15 +1248,15 @@
       }
 
       if (isPhone) {
-        // 登録モードのとき: 先に未登録マーカーを確認（パネルに触る前）
         if (mode !== 'search') {
-          const hasUnreg = markers.some(m => !m.registered);
-          if (!hasUnreg) {
+          // ＋カーソルがある（地図タップ済み）か未登録マーカーがある場合のみ開く
+          const hasCursor = selectedLayer !== null && touchCursorX !== null;
+          const hasUnreg  = markers.some(m => !m.registered);
+          if (!hasCursor && !hasUnreg) {
             showToast('先に地図をタップして場所を決めてください', 'rgba(140,80,20,0.95)');
-            return; // パネル状態は変更しない
+            return;
           }
         }
-        // 検証OK: 全画面で開く
         sidePanel.classList.remove('sp-mini');
         sidePanel.classList.add('open', 'sp-full');
       } else {
@@ -1812,14 +1819,32 @@
       if (!siteName || !partName) { regError.classList.add('visible'); return; }
       regError.classList.remove('visible');
 
-      // 最後の未登録マーカーを取得
       let target = null;
-      for (let i = markers.length - 1; i >= 0; i--) {
-        if (!markers[i].registered) { target = markers[i]; break; }
-      }
-      if (!target) {
-        showToast('先に地図上で場所をタップしてください', 'rgba(140,20,20,0.95)');
-        return;
+
+      if (isTouchDevice && touchCursorX !== null && selectedLayer) {
+        // タッチデバイス（iPad/iPhone）：＋カーソル位置にマーカーを作成
+        const x = (touchCursorX - offsetX) / scale;
+        const y = -(touchCursorY - offsetY) / scale;
+        if (!isInsideSiteBoundary(x, y)) {
+          showToast('緑の枠外には登録できません', 'rgba(140,20,20,0.95)');
+          return;
+        }
+        if (isInNoPlacementZone(x, y)) {
+          showToast('ストック不可エリアには登録できません', 'rgba(140,20,20,0.95)');
+          return;
+        }
+        const address = getAddressAt(x, y);
+        target = { id: nextId++, x, y, layer: selectedLayer, info: null, registered: false, pendingHide: false, address };
+        markers.push(target);
+      } else {
+        // PC（デスクトップ）：最後の未登録マーカーを取得
+        for (let i = markers.length - 1; i >= 0; i--) {
+          if (!markers[i].registered) { target = markers[i]; break; }
+        }
+        if (!target) {
+          showToast('先に地図上で場所をタップしてください', 'rgba(140,20,20,0.95)');
+          return;
+        }
       }
 
       target.info = {
@@ -2626,9 +2651,9 @@
       nearCursorIds.clear();
       if (e.touches.length === 0) {
         if (wasInPlacement && touchCursorX !== null && !touchMoved && dxf) {
-          // 配置モード：オフセット済みカーソル位置に配置
-          const r = canvas.getBoundingClientRect();
-          placeMarker(touchCursorX + r.left, touchCursorY + r.top);
+          // 配置モード：タップでフォームを開く（マーカー作成は登録ボタンで行う）
+          pendingReg = false;
+          openPanel('input');
         } else if (!wasInPlacement && !touchMoved && e.changedTouches.length===1 && dxf) {
           // 閲覧モード：タップで配置（段数未選択なら無視）
           const t=e.changedTouches[0];
