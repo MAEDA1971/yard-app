@@ -2001,6 +2001,7 @@
       touchCursorX = null; touchCursorY = null;
       placementBadge.style.display = 'none';
       document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
+      render();
     }
 
     // ===== クリア（Esc キーと同じ動作：前の画面に戻る） =====
@@ -2602,7 +2603,8 @@
           const t=e.changedTouches[0];
           placeMarker(t.clientX, t.clientY);
         }
-        touchCursorX = null; touchCursorY = null;
+        // 配置モード中は登録ボタン押下まで＋を表示し続ける
+        if (!selectedLayer) { touchCursorX = null; touchCursorY = null; }
       }
       lastTouches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
       render();
