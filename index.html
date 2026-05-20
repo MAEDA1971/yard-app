@@ -2592,23 +2592,25 @@
     }, {passive:false});
 
     canvas.addEventListener('touchend', e => {
+      e.preventDefault(); // iPadの合成mouseupイベントを抑制
+      const wasInPlacement = selectedLayer !== null; // 開始時の状態を保存
       nearCursorIds.clear();
       if (e.touches.length === 0) {
-        if (selectedLayer && touchCursorX !== null && !touchMoved && dxf) {
+        if (wasInPlacement && touchCursorX !== null && !touchMoved && dxf) {
           // 配置モード：オフセット済みカーソル位置に配置
           const r = canvas.getBoundingClientRect();
           placeMarker(touchCursorX + r.left, touchCursorY + r.top);
-        } else if (!selectedLayer && !touchMoved && e.changedTouches.length===1 && dxf) {
+        } else if (!wasInPlacement && !touchMoved && e.changedTouches.length===1 && dxf) {
           // 閲覧モード：タップで配置（段数未選択なら無視）
           const t=e.changedTouches[0];
           placeMarker(t.clientX, t.clientY);
         }
-        // 配置モード中は登録ボタン押下まで＋を表示し続ける
-        if (!selectedLayer) { touchCursorX = null; touchCursorY = null; }
+        // 配置モードで開始した場合は＋を消さない（clearLayerSelection()のみがクリア）
+        if (!wasInPlacement) { touchCursorX = null; touchCursorY = null; }
       }
       lastTouches = Array.from(e.touches).map(t=>({x:t.clientX,y:t.clientY}));
       render();
-    });
+    }, {passive: false});
 
     function findMarkerAt(sx, sy) {
       const HIT = 16;
