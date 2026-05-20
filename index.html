@@ -663,32 +663,20 @@
           この○はまだ製品情報が登録されていません
         </div>
         <div class="info-row">
-          <span class="info-label">段数</span>
-          <span class="info-value"><span id="i-layer-badge" class="layer-badge"></span></span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">部件名</span>
+          <span class="info-label">物件名</span>
           <span class="info-value" id="i-site"></span>
         </div>
         <div class="info-row">
-          <span class="info-label">製品番号</span>
+          <span class="info-label">部材名</span>
           <span class="info-value" id="i-part-name"></span>
         </div>
-        <div class="info-row">
-          <span class="info-label">部材種</span>
-          <span class="info-value" id="i-part-type"></span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">製造日</span>
-          <span class="info-value" id="i-mfg-date"></span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">製造ライン</span>
-          <span class="info-value" id="i-seizou-line"></span>
-        </div>
-        <div class="info-row">
-          <span class="info-label">型枠番号</span>
-          <span class="info-value" id="i-mold-no"></span>
+        <button id="btn-delete-marker" style="margin-top:18px;width:100%;padding:14px;background:#c0392b;color:#fff;border:none;border-radius:7px;font-size:16px;font-weight:bold;cursor:pointer;">削除</button>
+        <div id="delete-confirm" style="display:none;margin-top:14px;background:rgba(255,255,255,0.08);border-radius:8px;padding:16px;text-align:center;">
+          <div style="color:#fff;font-size:15px;margin-bottom:14px;">削除していいですか？</div>
+          <div style="display:flex;gap:12px;">
+            <button id="btn-delete-yes" style="flex:1;padding:14px;background:#c0392b;color:#fff;border:none;border-radius:7px;font-size:16px;font-weight:bold;cursor:pointer;">YES</button>
+            <button id="btn-delete-no"  style="flex:1;padding:14px;background:#555;color:#fff;border:none;border-radius:7px;font-size:16px;cursor:pointer;">NO</button>
+          </div>
         </div>
       </div>
 
@@ -2686,7 +2674,10 @@
       7: '7段目', 8: '8段目'
     };
 
+    let infoMarker = null;
+
     function openInfo(marker) {
+      infoMarker = marker;
       panelTitle.textContent = '製品情報';
       regForm.style.display = 'none';
       searchForm.style.display = 'none';
@@ -2697,14 +2688,13 @@
       const unregMsg  = document.getElementById('info-unreg-msg');
       infoPanel.classList.add('visible');
       sidePanel.classList.add('open');
+      document.getElementById('delete-confirm').style.display = 'none';
 
-      // iPhone: 情報表示は全画面
       if (isPhone) {
         sidePanel.classList.remove('sp-mini');
         sidePanel.classList.add('sp-full');
       }
 
-      // 番地表示（一番上）
       const addrBox = document.getElementById('i-address-box');
       if (marker.address) {
         document.getElementById('i-address').textContent = marker.address;
@@ -2713,28 +2703,42 @@
         addrBox.classList.remove('visible');
       }
 
-      const badge = document.getElementById('i-layer-badge');
-      badge.textContent = LAYER_NAMES[marker.layer];
-      badge.style.background = LAYER_COLORS[marker.layer];
-
       if (!marker.info) {
         unregMsg.style.display = 'block';
-        ['i-site','i-part-name','i-part-type','i-mfg-date','i-seizou-line','i-mold-no']
-          .forEach(id => setInfoField(id, ''));
+        setInfoField('i-site', '');
+        setInfoField('i-part-name', '');
       } else {
         unregMsg.style.display = 'none';
-        const inf = marker.info;
-        setInfoField('i-site',        inf.siteName);
-        setInfoField('i-part-name',   inf.partName);
-        setInfoField('i-part-type',   inf.partType);
-        setInfoField('i-mfg-date',    inf.mfgDate);
-        setInfoField('i-seizou-line', inf.seizouLine);
-        setInfoField('i-mold-no',     inf.moldNo);
+        setInfoField('i-site',      marker.info.siteName);
+        setInfoField('i-part-name', marker.info.partName);
       }
     }
 
+    document.getElementById('btn-delete-marker').addEventListener('click', () => {
+      document.getElementById('delete-confirm').style.display = 'block';
+    });
+
+    document.getElementById('btn-delete-no').addEventListener('click', () => {
+      document.getElementById('delete-confirm').style.display = 'none';
+    });
+
+    document.getElementById('btn-delete-yes').addEventListener('click', () => {
+      if (!infoMarker) return;
+      markers = markers.filter(m => m.id !== infoMarker.id);
+      saveMarkers();
+      infoMarker = null;
+      document.getElementById('info-panel').classList.remove('visible');
+      document.getElementById('delete-confirm').style.display = 'none';
+      searchVisibleIds.delete && searchVisibleIds.forEach((v, k) => {});
+      searchVisibleIds.clear();
+      render();
+      showToast('削除しました');
+      closePanelKeepSearch();
+    });
+
     function setInfoField(id, val) {
       const el = document.getElementById(id);
+      if (!el) return;
       if (val) { el.textContent = val; el.className = 'info-value'; }
       else     { el.textContent = '—'; el.className = 'info-value empty'; }
     }
