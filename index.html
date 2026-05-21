@@ -67,8 +67,9 @@
     #btn-layer-add:hover, #btn-layer-remove:hover { filter: brightness(1.2); }
     #btn-layer-remove { display: none; }
 
-    #btn-search   { background: #1a5a9a; }
-    #btn-clear    { background: #555; }
+    #btn-search    { background: #1a5a9a; }
+    #btn-clear     { background: #555; }
+    #btn-register  { display: none; background: #1a7a3a; }
 
     #status {
       position: absolute; bottom: 8px; left: 8px; background: rgba(0,0,0,0.65);
@@ -456,6 +457,7 @@
       #btn-search    { order: 11; background: #1a5a9a; }
       #btn-shipment  { order: 12; background: #aa1a0a; }
       #btn-clear     { order: 13; }
+      #btn-register  { order: 14; display: block; background: #1a7a3a; }
       .toolbar-btn  { padding: 8px 2px; font-size: 12px; border-radius: 8px; }
       #btn-layer-add, #btn-layer-remove { padding: 8px 2px; font-size: 14px; border-radius: 8px; }
 
@@ -571,6 +573,7 @@
       <button class="toolbar-btn" id="btn-search">検索</button>
       <button class="toolbar-btn" id="btn-shipment">出荷</button>
       <button class="toolbar-btn" id="btn-clear">クリア</button>
+      <button class="toolbar-btn" id="btn-register">登録</button>
     </div>
 
     <div id="no-place-msg">ここには製品を置けません</div>
@@ -2034,6 +2037,20 @@
     }
     btnClear.addEventListener('click', execClear);
 
+    // ===== iPhone用 登録ボタン =====
+    document.getElementById('btn-register').addEventListener('click', () => {
+      if (!selectedLayer) {
+        showToast('先に段数ボタンを押してください', 'rgba(140,80,20,0.95)');
+        return;
+      }
+      if (!touchCursorX) {
+        showToast('先に地図をタップして場所を決めてください', 'rgba(140,80,20,0.95)');
+        return;
+      }
+      pendingReg = false;
+      openPanel('input');
+    });
+
     // ===== 段数ボタン =====
     function bindLayerBtn(btn) {
       btn.addEventListener('click', () => {
@@ -2048,7 +2065,7 @@
           document.querySelectorAll('.layer-btn').forEach(b => b.classList.remove('active'));
           btn.classList.add('active');
           pendingReg = true;
-          openPanel('input');
+          if (!isPhone) openPanel('input');
           if (isTouchDevice || ('ontouchstart' in window)) placementBadge.style.display = 'block';
         }
       });
@@ -2645,8 +2662,8 @@
           if (hit && hit.registered) {
             // 登録済みマーカーのタップ：配置モード中でも情報パネルを優先表示
             openInfo(hit);
-          } else if (wasInPlacement && touchCursorX !== null) {
-            // 配置モード：タップでフォームを開く
+          } else if (wasInPlacement && touchCursorX !== null && !isPhone) {
+            // 配置モード：タップでフォームを開く（iPhone は登録ボタンで開く）
             pendingReg = false;
             openPanel('input');
           } else if (!wasInPlacement) {
