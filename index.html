@@ -514,43 +514,6 @@
 </head>
 <body>
 
-  <!-- ログイン画面 -->
-  <div id="login-overlay" style="
-    display:flex; position:fixed; inset:0; z-index:9999;
-    background:#0d1f2d; align-items:center; justify-content:center; padding:20px;
-  ">
-    <div style="
-      background:#1a2a3a; border-radius:14px; padding:32px 24px;
-      width:min(92vw,340px); border:1px solid rgba(255,255,255,0.15);
-      box-shadow:0 8px 32px rgba(0,0,0,0.5);
-    ">
-      <h2 style="color:#fff;font-size:18px;margin:0 0 6px;">ストックヤード管理</h2>
-      <p style="color:#8ab;font-size:13px;margin:0 0 24px;">FileMaker アカウントでログイン</p>
-      <div style="margin-bottom:14px;">
-        <label style="color:#9ab;font-size:12px;display:block;margin-bottom:5px;">ユーザー名</label>
-        <input id="login-user" type="text" autocomplete="username"
-          style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:7px;
-          border:1px solid rgba(255,255,255,0.2);background:#0d1f2d;color:#fff;font-size:15px;"
-          placeholder="ユーザー名">
-      </div>
-      <div style="margin-bottom:20px;">
-        <label style="color:#9ab;font-size:12px;display:block;margin-bottom:5px;">パスワード</label>
-        <input id="login-pass" type="password" autocomplete="current-password"
-          style="width:100%;box-sizing:border-box;padding:11px 12px;border-radius:7px;
-          border:1px solid rgba(255,255,255,0.2);background:#0d1f2d;color:#fff;font-size:15px;"
-          placeholder="パスワード">
-      </div>
-      <div id="login-error" style="
-        display:none;color:#f77;font-size:13px;margin-bottom:14px;
-        background:rgba(255,80,80,0.12);padding:9px 12px;border-radius:6px;
-      "></div>
-      <button id="login-btn" style="
-        width:100%;padding:13px;border-radius:8px;border:none;
-        background:#1e7fc2;color:#fff;font-size:16px;font-weight:bold;cursor:pointer;
-      ">ログイン</button>
-    </div>
-  </div>
-
   <header>
     <h1>プレキャスト製品ストックヤード管理</h1>
     <button id="btn-csv-import">CSV取込</button>
@@ -835,117 +798,15 @@
     import DxfParser from 'https://esm.sh/dxf-parser';
     import jsQR from 'https://esm.sh/jsqr';
 
-    // ===== FileMaker Data API 設定 =====
-    const FM = {
-      server:   'https://fm-proxy.t-maeda-eb4.workers.dev',
-      database: '基幹システム',
-      layout:   'D1002_製品情報取得_mst製品',
-      get username() { return sessionStorage.getItem('fm_user') || ''; },
-      get password() { return sessionStorage.getItem('fm_pass') || ''; }
-    };
-
-    async function fmGetToken() {
-      const db  = encodeURIComponent(FM.database);
-      const url = `${FM.server}/fmi/data/v1/databases/${db}/sessions`;
-      const res = await fetch(url, {
-        method:  'POST',
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${FM.username}:${FM.password}`),
-          'Content-Type':  'application/json'
-        },
-        body: '{}'
-      });
-      const j = await res.json();
-      if (j.messages[0].code !== '0') throw new Error('FileMaker認証失敗');
-      return j.response.token;
-    }
-
-    // ===== ログイン処理 =====
-    async function doLogin() {
-      const user = document.getElementById('login-user').value.trim();
-      const pass = document.getElementById('login-pass').value;
-      const errEl = document.getElementById('login-error');
-      const btn   = document.getElementById('login-btn');
-
-      if (!user || !pass) {
-        errEl.textContent = 'ユーザー名とパスワードを入力してください';
-        errEl.style.display = 'block';
-        return;
-      }
-
-      btn.textContent = '確認中...';
-      btn.disabled = true;
-      errEl.style.display = 'none';
-
-      try {
-        const db  = encodeURIComponent(FM.database);
-        const url = `${FM.server}/fmi/data/v1/databases/${db}/sessions`;
-        const res = await fetch(url, {
-          method:  'POST',
-          headers: {
-            'Authorization': 'Basic ' + btoa(`${user}:${pass}`),
-            'Content-Type':  'application/json'
-          },
-          body: '{}'
-        });
-        const j = await res.json();
-        if (j.messages[0].code !== '0') throw new Error('認証失敗');
-
-        // ログアウト（トークン破棄）
-        await fetch(`${FM.server}/fmi/data/v1/databases/${db}/sessions/${j.response.token}`,
-          { method: 'DELETE' }).catch(() => {});
-
-        // 認証情報をセッションに保存
-        sessionStorage.setItem('fm_user', user);
-        sessionStorage.setItem('fm_pass', pass);
-
-        document.getElementById('login-overlay').style.display = 'none';
-      } catch (e) {
-        // TypeError = ネットワークエラー（CORSブロックの可能性が高い）
-        const isCors = e instanceof TypeError;
-        errEl.innerHTML = isCors
-          ? '接続がブロックされています（CORS）。<br>FileMakerサーバー側の設定変更が必要です。<br><a href="https://github.com/MAEDA1971/yard-app#cors" target="_blank" style="color:#7cf;">詳細はこちら</a>'
-          : 'ID・パスワードが正しくありません。';
-        errEl.style.display = 'block';
-        btn.textContent = 'ログイン';
-        btn.disabled = false;
-      }
-    }
-
-    document.getElementById('login-btn').addEventListener('click', doLogin);
-    document.getElementById('login-pass').addEventListener('keydown', e => {
-      if (e.key === 'Enter') doLogin();
-    });
-
-    // 既にログイン済みならスキップ
-    if (sessionStorage.getItem('fm_user')) {
-      document.getElementById('login-overlay').style.display = 'none';
-    }
-
-    async function fmLogout(token) {
-      const db  = encodeURIComponent(FM.database);
-      await fetch(`${FM.server}/fmi/data/v1/databases/${db}/sessions/${token}`, {
-        method: 'DELETE'
-      }).catch(() => {});
-    }
+    // ===== QR製品情報API（fm-proxy Cloudflare Worker 経由） =====
+    const FM_PROXY = 'https://fm-proxy.t-maeda-eb4.workers.dev';
 
     async function fmFindByUUID(uuid) {
-      const token = await fmGetToken();
-      const db    = encodeURIComponent(FM.database);
-      const layout = encodeURIComponent(FM.layout);
-      const url = `${FM.server}/fmi/data/v1/databases/${db}/layouts/${layout}/_find`;
-      try {
-        const res = await fetch(url, {
-          method: 'POST',
-          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query: [{ UUID: uuid }] })
-        });
-        const j = await res.json();
-        if (j.messages[0].code !== '0') return null;
-        return j.response.data[0]?.fieldData ?? null;
-      } finally {
-        fmLogout(token);
-      }
+      const res = await fetch(`${FM_PROXY}/api/product/${encodeURIComponent(uuid)}`);
+      if (!res.ok) return null;
+      const j = await res.json();
+      if (j.error) return null;
+      return j;
     }
 
     // ===== デバイス判定 =====
