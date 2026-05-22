@@ -25,6 +25,11 @@ export default {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
 
+    // /test → FileMaker 認証テスト
+    if (url.pathname === '/test') {
+      return authTest(env);
+    }
+
     // /api/product/{uuid} → FileMaker から製品情報を取得して返す
     const m = url.pathname.match(/^\/api\/product\/([^/]+)$/);
     if (m) {
@@ -104,6 +109,40 @@ async function productLookup(uuid, env) {
     fetch(`${FM_SERVER}/fmi/data/v1/databases/${db}/sessions/${token}`,
       { method: 'DELETE' }).catch(() => {});
   }
+}
+
+// ===== /test 認証テスト =====
+
+async function authTest(env) {
+  if (!env.FM_USER || !env.FM_PASS) {
+    return json({ ok: false, error: 'シークレット FM_USER / FM_PASS が未設定です' }, 500);
+  }
+  const db  = encodeURIComponent(FM_DATABASE);
+  const url = `${FM_SERVER}/fmi/data/v1/databases/${db}/sessions`;
+  let res, j;
+  try {
+    res = await fetch(url, {
+      method:  'POST',
+      headers: {
+        'Authorization': 'Basic ' + btoa(`${env.FM_USER}:${env.FM_PASS}`),
+        'Content-Type':  'application/json',
+      },
+      body: '{}',
+    });
+    j = await res.json();
+  } catch (e) {
+    return json({ ok: false, error: 'ネットワークエラー', detail: e.message }, 503);
+  }
+  const code = j.messages?.[0]?.code;
+  const msg  = j.messages?.[0]?.message;
+  if (code !== '0') {
+    return json({ ok: false, error: `FileMaker認証失敗 (code ${code})`, detail: msg }, 401);
+  }
+  // トークンを即破棄
+  const token = j.response.token;
+  fetch(`${FM_SERVER}/fmi/data/v1/databases/${db}/sessions/${token}`,
+    { method: 'DELETE' }).catch(() => {});
+  return new Response('OK', { status: 200, headers: CORS_HEADERS });
 }
 
 async function getToken(env) {
